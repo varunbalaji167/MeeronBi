@@ -1,0 +1,202 @@
+// ─────────────────────────────────────────────────────────────────────────
+// MeeronBi Antenatal Care Data Analytics — Prisma schema (MySQL)
+//
+// Design notes
+// ------------
+// The paper/prototype form has 137+ fields spread across 7 tabs (Personal,
+// History, Investigation, Ultrasound, Delivery, Robson, Treatments), several
+// of which are repeating groups (e.g. Obstetric History G1-G6, Treatment
+// visits 1-9). Rather than hard-coding ~140 individual columns (which would
+// make the schema brittle every time a field is tweaked), each tab is stored
+// as ONE row per patient with:
+//   - a flexible `data Json` column holding every field for that tab, keyed
+//     by the field config in `src/lib/formConfigs.ts` (single source of truth
+//     for both the UI and validation), and
+//   - a `status` (DRAFT | COMPLETE) so partially-filled tabs can be saved
+//     without blocking on required fields — this is the "draft support"
+//     the app needs.
+// A handful of fields that are genuinely useful to query/aggregate for the
+// public trends page (delivery mode, Robson group, admission type, baby
+// weight) are ALSO promoted to real typed columns, denormalized alongside
+// the JSON blob, so trend queries don't need to parse JSON in MySQL.
+// ─────────────────────────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN // hospital staff / dev team — full data entry access
+  PATIENT // can view only their own record, read-only
+}
+
+enum RecordStatus {
+  DRAFT
+  COMPLETE
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  name         String?
+  role         Role      @default(ADMIN)
+  createdAt    DateTime  @default(now())
+  lastLoginAt  DateTime?
+
+  // If role === PATIENT, this links the login to their one patient record.
+  patient      Patient?  @relation("PatientAccount")
+
+  // Patients this user (as staff) has created.
+  createdPatients Patient[] @relation("CreatedBy")
+
+  @@map("users")
+}
+
+model Patient {
+  id          String   @id @default(cuid())
+  mrn         String?  @unique // "4. CR No./MRD"
+  fullName    String // "1. Full Name"
+  surname     String? // "2. Surname"
+  contactNo   String? // "5. Contact No."
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  createdById String
+  createdBy   User     @relation("CreatedBy", fields: [createdById], references: [id])
+
+  // Optional linked login for the patient portal.
+  userId      String?  @unique
+  user        User?    @relation("PatientAccount", fields: [userId], references: [id])
+
+  personal      PersonalInfo?
+  history       ObstetricHistory?
+  investigation Investigation?
+  ultrasound    Ultrasound?
+  delivery      Delivery?
+  robson        RobsonClassification?
+  treatments    Treatment?
+
+  @@index([fullName])
+  @@map("patients")
+}
+
+// Tab 1 — Personal (fields 1-24)
+model PersonalInfo {
+  id        String       @id @default(cuid())
+  patientId String       @unique
+  patient   Patient      @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  status    RecordStatus @default(DRAFT)
+  data      Json // all fields 1-24 keyed by formConfigs "personal"
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@map("personal_info")
+}
+
+// Tab 2 — History (fields 25-41, incl. repeating Obstetric History G1-G6)
+model ObstetricHistory {
+  id        String       @id @default(cuid())
+  patientId String       @unique
+  patient   Patient      @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  status    RecordStatus @default(DRAFT)
+  data      Json
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@map("obstetric_history")
+}
+
+// Tab 3 — Investigation (fields 42-80)
+model Investigation {
+  id        String       @id @default(cuid())
+  patientId String       @unique
+  patient   Patient      @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  status    RecordStatus @default(DRAFT)
+  data      Json
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@map("investigations")
+}
+
+// Tab 4 — Ultrasound (fields 81-116)
+model Ultrasound {
+  id        String       @id @default(cuid())
+  patientId String       @unique
+  patient   Patient      @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  status    RecordStatus @default(DRAFT)
+  data      Json
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@map("ultrasounds")
+}
+
+// Tab 5 — Delivery (fields 117-137)
+model Delivery {
+  id            String       @id @default(cuid())
+  patientId     String       @unique
+  patient       Patient      @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  status        RecordStatus @default(DRAFT)
+
+  // Denormalized for public trend aggregation:
+  admissionType String? // "Emergency" | "Routine"
+  deliveryMode  String? // "Vaginal" | "Caesarean" | "Instrumental"
+  babyWeightKg  Float?
+
+  data          Json
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@map("deliveries")
+}
+
+// Tab 6 — Robson classification
+model RobsonClassification {
+  id          String       @id @default(cuid())
+  patientId   String       @unique
+  patient     Patient      @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  status      RecordStatus @default(DRAFT)
+
+  // Denormalized computed result for trend aggregation:
+  groupNumber Int? // 1-10
+
+  data        Json
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@map("robson_classifications")
+}
+
+// Tab 7 — Treatments (repeating visit measurements + medication courses)
+model Treatment {
+  id        String       @id @default(cuid())
+  patientId String       @unique
+  patient   Patient      @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  status    RecordStatus @default(DRAFT)
+  data      Json
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@map("treatments")
+}
+
+// Per-tab, per-deployment "which fields does this hospital actually want to
+// collect" — see src/domain/fieldVisibility.ts for the resolution logic.
+// One row per tab; `enabledFieldNames` is a JSON string array. Deliberately
+// NOT per-patient: this is a hospital-wide data-collection standard, not a
+// per-record choice.
+model TabFieldPreference {
+  tabKey            String   @id
+  enabledFieldNames Json
+  updatedAt         DateTime @updatedAt
+
+  @@map("tab_field_preferences")
+}
+
