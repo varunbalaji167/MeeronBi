@@ -1,7 +1,7 @@
 import { getServerSession, type Session } from "next-auth";
 import { authOptions } from "./authOptions";
 import { prisma } from "@/server/db/prisma";
-import { UnauthorizedError, ForbiddenError } from "@/server/http/errors";
+import { UnauthorizedError, ForbiddenError, NotFoundError } from "@/server/http/errors";
 
 /**
  * Access-control guards used by every API route and server layout. These
@@ -15,6 +15,14 @@ import { UnauthorizedError, ForbiddenError } from "@/server/http/errors";
  * `withApiErrorHandling` wrapping every route, a call site just does
  * `const session = await requireAdminSession();` with no branching, and
  * the right HTTP status/JSON shape happens automatically if it throws.
+ *
+ * Multi-tenancy: a session's `facilityId` is the tenant boundary (see
+ * prisma/schema.prisma's Facility model). Every guard below that resolves
+ * a *specific* patient also confirms that patient belongs to the caller's
+ * facility, and reports a facility mismatch as NotFoundError — not
+ * ForbiddenError — so a session from one hospital can't even learn that a
+ * given id exists at another one. Role checks alone are NOT enough once
+ * more than one facility exists.
  */
 
 export async function getSession() {
@@ -59,14 +67,42 @@ export async function requirePatientSession(): Promise<Session> {
 }
 
 /**
- * A patient record is visible to: any admin, or the patient it belongs to.
- * Used by routes that serve per-tab data, where both roles can GET but only
- * admins can write. Throws if neither condition holds.
+ * Require an authenticated ADMIN session, AND that `patientId` belongs to
+ * that admin's own facility — every write path that takes a patient id
+ * (saving/deleting a tab record, deleting a patient, setting up portal
+ * access) needs this, not the plain `requireAdminSession()` above, or an
+ * admin at one facility could act on another facility's patient just by
+ * knowing/guessing its id. A cross-facility id reports as NotFoundError,
+ * same reasoning as `assertPatientRecordAccessible` below.
  */
-export async function assertPatientRecordAccessible(patientId: string): Promise<void> {
+export async function requireAdminSessionForPatient(patientId: string): Promise<Session> {
+  const session = await requireAdminSession();
+  const patient = await prisma.patient.findUnique({ where: { id: patientId }, select: { facilityId: true } });
+  if (!patient || patient.facilityId !== session.user.facilityId) {
+    throw new NotFoundError("Patient not found.");
+  }
+  return session;
+}
+
+/**
+ * A patient record is visible to: any admin **at that patient's own
+ * facility**, or the patient it belongs to. Used by routes that serve
+ * per-tab data, where both roles can GET but only admins can write (which
+ * additionally needs `requireAdminSessionForPatient` above, not just this).
+ * Returns the session on success (so the caller doesn't need a second
+ * `getSession()` call to get at `facilityId` etc.) and throws otherwise —
+ * NotFoundError for a real patient at a different facility (don't confirm
+ * it exists), ForbiddenError for a patient session trying to reach someone
+ * else's record.
+ */
+export async function assertPatientRecordAccessible(patientId: string): Promise<Session> {
   const session = await getSession();
   if (!session?.user) throw new UnauthorizedError();
-  if (session.user.role === "ADMIN") return;
-  if (session.user.role === "PATIENT" && session.user.patientId === patientId) return;
+  if (session.user.role === "ADMIN") {
+    const patient = await prisma.patient.findUnique({ where: { id: patientId }, select: { facilityId: true } });
+    if (!patient || patient.facilityId !== session.user.facilityId) throw new NotFoundError("Patient not found.");
+    return session;
+  }
+  if (session.user.role === "PATIENT" && session.user.patientId === patientId) return session;
   throw new ForbiddenError();
 }

@@ -5,9 +5,10 @@ import { withApiErrorHandling } from "@/server/http/withApiErrorHandling";
 import { ValidationError } from "@/server/http/errors";
 
 export const GET = withApiErrorHandling(async (req: NextRequest) => {
-  await requireAdminSession();
+  const session = await requireAdminSession();
 
   const result = await listPatients({
+    facilityId: session.user.facilityId,
     query: req.nextUrl.searchParams.get("q") ?? undefined,
     page: Number(req.nextUrl.searchParams.get("page")) || undefined,
     pageSize: Number(req.nextUrl.searchParams.get("pageSize")) || undefined,
@@ -26,6 +27,7 @@ export const POST = withApiErrorHandling(async (req: NextRequest) => {
   const patient = await createPatient({
     fullName,
     createdById: session.user.id,
+    facilityId: session.user.facilityId,
   });
 
   return NextResponse.json({ patient }, { status: 201 });

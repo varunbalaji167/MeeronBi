@@ -1,6 +1,17 @@
 import { GridSectionConfig, TabConfig } from "./types";
 import { leftRightBoth, normalAbnormal, positiveNegative, yesNo } from "./sharedOptions";
+import { weeksWindow } from "../gestationalAge";
 
+// Per the source spec's page 4 ("Ultrasounds are mandatory except that
+// specific ultrasounds are done in pre-specified time. Display based on
+// LMP.", repeated per-section as "Auto select for display using LMP
+// date"): several sections below carry a `recommendedWindow` — a textbook
+// gestational-age range, shown as a live badge computed from the Personal
+// tab's LMP (see GestationalWindowBadge / TabRecordView). This tab
+// otherwise has NO `core` fields at all (nothing on this page carries a
+// red dot, unlike Personal/History/Investigation) — its display-timing
+// story is this LMP-window mechanism instead of the usual
+// shown-by-default/customizable split.
 export const ultrasoundTab: TabConfig = {
   key: "ultrasound",
   label: "Ultrasound",
@@ -9,10 +20,22 @@ export const ultrasoundTab: TabConfig = {
     {
       title: "NT Scan",
       columns: 4,
+      // "A nuchal translucency (NT) scan is performed during the first
+      // trimester of pregnancy, ideally between 11 weeks and 13 weeks and 6 days."
+      recommendedWindow: weeksWindow(11, 0, 13, 6, "11w0d – 13w6d"),
       fields: [
         { name: "ntScanDate", label: "NT Scan on", type: "date" },
         { name: "crlMm", label: "81. CRL (mm)", type: "number", placeholder: "e.g., 0.9", validation: { min: 0, max: 100, message: "CRL should be between 0-100 mm." } },
-        { name: "pogWeeksDays", label: "82. POG (Weeks and Days)", type: "text", placeholder: "e.g., 2.9" },
+        {
+          name: "pogWeeksDays",
+          label: "82. POG (Weeks and Days)",
+          type: "number",
+          placeholder: "e.g., 12.9",
+          // Was free text; every other POG field on this tab (and the
+          // gestational-age math in domain/gestationalAge.ts) treats this
+          // as a number, so this one now matches.
+          validation: { min: 0, max: 45, message: "POG should be between 0-45 weeks." },
+        },
         { name: "ntMm", label: "83. NT (mm)", type: "number", placeholder: "e.g., 8.1", validation: { min: 0, max: 10, message: "NT should be between 0-10 mm." } },
         { name: "ntOtherFindings", label: "84. Other findings", type: "select", options: ["Normal", "Abnormal"] },
       ],
@@ -20,18 +43,31 @@ export const ultrasoundTab: TabConfig = {
     {
       title: "Anomaly Scan",
       columns: 4,
+      // "An anomaly scan and Soft Markers are done during the
+      // mid-pregnancy - 18 and 22 weeks of gestation."
+      recommendedWindow: weeksWindow(18, 0, 22, 0, "18w0d – 22w0d"),
       fields: [
         { name: "anomalyScanDate", label: "Anomaly Scan", type: "date" },
         { name: "anomalyParamWeeks", label: "86. Parameter (in Weeks)", type: "number", placeholder: "e.g., 18" },
         { name: "placenta1", label: "87. Placenta", type: "select", options: ["Anterior", "Posterior", "Fundal", "Lateral", "Low-lying"] },
         { name: "placentaGrade1", label: "87a. Placenta Grade", type: "select", options: ["0", "I", "II", "III"] },
         { name: "afi1", label: "88. AFI", type: "number", placeholder: "e.g., 9", validation: { min: 0, max: 30, message: "AFI should be between 0-30." } },
-        { name: "afiLevel1", label: "89. AFI Level", type: "text" },
+        {
+          name: "afiLevel1",
+          label: "89. AFI Level",
+          type: "number",
+          placeholder: "e.g., 9",
+          // Was free text — inconsistent with the same "AFI Level" concept
+          // recorded again in the Growth Scan section below (afiLevel2,
+          // already a number). Made consistent.
+          validation: { min: 0, max: 30, message: "AFI level should be between 0-30." },
+        },
       ],
     },
     {
       kind: "grid",
       title: "Soft Markers",
+      recommendedWindow: weeksWindow(18, 0, 22, 0, "18w0d – 22w0d"),
       valueColumns: [
         { name: "presence", label: "Presence/Absence", type: "radio", options: positiveNegative },
         { name: "sizeLocation", label: "Size/Location", type: "text" },
@@ -53,6 +89,13 @@ export const ultrasoundTab: TabConfig = {
     {
       title: "Uterine Artery Doppler",
       columns: 4,
+      // "A uterine artery Doppler test is typically performed during 11 to
+      // 14 weeks or the second trimester (20 to 24 weeks) of pregnancy" —
+      // two distinct textbook windows (not one continuous span — the gap
+      // between them, ~15-19 weeks, isn't a recommended time for this
+      // test), so both are passed through and "in window" is true for
+      // either one.
+      recommendedWindow: [weeksWindow(11, 0, 14, 0, "11w0d–14w0d"), weeksWindow(20, 0, 24, 0, "20w0d–24w0d")],
       fields: [
         { name: "uterineDopplerDate", label: "Test Done on", type: "date" },
         { name: "pulsatilityIndex", label: "100. Pulsatility index", type: "number", placeholder: "e.g., 2.9" },
@@ -78,6 +121,12 @@ export const ultrasoundTab: TabConfig = {
     {
       kind: "grid",
       title: "USG FWB Before Delivery — Doppler Test",
+      // "USG FWB (fetal well-being ultrasound) before delivery is routinely
+      // done between 36 and 38 weeks of pregnancy, though it can be
+      // repeated closer to 40 weeks or weekly if there are specific medical
+      // complications." — window shown as 36-40w to cover the routine case
+      // without flagging a same-condition repeat scan as "off schedule".
+      recommendedWindow: weeksWindow(36, 0, 40, 0, "36w0d – 40w0d (may repeat weekly near term)"),
       valueColumns: [
         { name: "normalAbnormal", label: "Normal/Abnormal", type: "radio", options: normalAbnormal },
         { name: "ri", label: "RI", type: "number" },

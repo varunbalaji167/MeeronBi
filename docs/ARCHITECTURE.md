@@ -68,15 +68,17 @@ src/
     http/withApiErrorHandling.ts  Wraps every route handler so thrown errors become valid JSON, never an empty body
     auth/
       authOptions.ts         NextAuth config (providers, session/jwt callbacks)
-      guards.ts              requireAdmin/requirePatient/assertPatientRecordAccessible
+      guards.ts              requireAdmin/requirePatient/assertPatientRecordAccessible — all facility-scoped, see below
+    facilities/
+      facilityRepository.ts      Resolves the tenant for contexts with no session (currently just /public/trends)
     patients/
-      patientRepository.ts       Patient CRUD (list+pagination+search, create, get, delete)
+      patientRepository.ts       Patient CRUD (list+pagination+search, create, get, delete) — every read/write scoped by facilityId
       tabRecordRepository.ts     Per-tab record CRUD (pure data access, no HTTP)
       tabRecordRouteHandlers.ts  Thin HTTP adapters used by the 7 tab API routes
       portalAccessService.ts     "One login per patient, no duplicate emails" business rule
-      fieldPreferenceService.ts  Reads/writes a hospital's field-visibility choices
+      fieldPreferenceService.ts  Reads/writes a hospital's field-visibility choices, scoped per facility
     trends/
-      trendsRepository.ts       Aggregate-only queries for the public trends page
+      trendsRepository.ts       Aggregate-only queries for the public trends page, scoped to one facility
 
   app/                    Next.js App Router — routing glue only
     admin/                 Hospital staff area (sidebar shell, patient list, per-patient tabs)
@@ -312,6 +314,73 @@ This is enforced in **three places**, deliberately redundant:
    invalid — so a request built by hand, bypassing the UI entirely, cannot
    mark a record Complete with a malformed phone number (or any other
    invalid field) just because it skipped the browser.
+
+---
+
+## Cross-checked against the source spec (`MeeronBi_Default_indicators_to_be_recorded.pdf`)
+
+The original prototype's field list came from a PDF walkthrough of a Google
+Apps Script mockup, one page per tab (pages 1-7, before its Analytics
+pages), each screenshot annotated with red dots marking "default indicators
+to be recorded" — the same concept this codebase calls `core` (see Field
+visibility above). A field-by-field pass against those screenshots (Sept
+2026) found and fixed several drifts:
+
+- **Personal**: `edd`/`heightCm` were `core` but carry no red dot in the
+  spec (EDD is a greyed-out derived field there); `usgEdd`,
+  `weightLastVisitKg`, `religion`, `profession`, `highestEducation`,
+  `spouseName`, `address`, `cityTown`, `district`, `pin` were missing
+  `core` despite having one. Corrected both directions.
+- **History**: same kind of correction (`dateOfWedding`, `infertilityType`,
+  `conceptionType`, `noCesareanDelivery`, `noVaginalDelivery`,
+  `lastChildbirth`, `noSponAbortions` added; `medicalHistory`,
+  `pregnancyComplications` removed). More substantially, **Obstetric
+  History** was a hardcoded 6-column grid (`fixedCount: 6`); the spec's
+  page annotates it as "G1 [only] is default — from G2 to G6 or G10, allow
+  users to add via an 'Add Gravida' button", so `RepeatingSectionConfig`
+  grew a `transposed`/`minCount`/`maxCount` shape (replacing `fixedCount`
+  entirely — it had no other users) and `RepeatingSection.tsx` grew a
+  matching dynamic-column render path.
+- **Investigation**: the spec's caption reads "Investigations are
+  mandatory" and nearly every field on that page carries a red dot — so
+  every plain-section field is now `core: true`. One side effect worth
+  knowing: this tab no longer has a "Customize fields" button at all
+  (`isCustomizable` returns false once nothing is left to hide), which is
+  the correct behavior, not a bug.
+- **Ultrasound**: the spec's page has *zero* red dots, but a different,
+  heavily-annotated instruction instead — "Auto select for display using
+  LMP date", attached to the NT Scan, Anomaly Scan, Uterine Artery Doppler,
+  and pre-delivery Doppler sections with specific textbook gestational-age
+  windows (e.g. NT scan at 11w0d-13w6d). Read this as "this tab uses a
+  different display-timing mechanism instead of the shown-by-default
+  split" rather than "nothing here is default" — stripping `core` to
+  literally match zero dots would have emptied the tab's default view
+  entirely, a regression the spec almost certainly didn't intend. Instead,
+  added `domain/gestationalAge.ts` (pure LMP → gestational-age math) and a
+  `recommendedWindow` on the relevant `SectionConfig`/`GridSectionConfig`
+  entries, rendered as an informational badge (`GestationalWindowBadge`)
+  computed from the Personal tab's LMP — fetched specifically for this tab
+  in `TabRecordView` (the first genuinely cross-tab read in this app).
+  Deliberately advisory only, never a hide/disable: a scan legitimately
+  happening outside its textbook window must never be blocked from being
+  recorded.
+- **Delivery**: also zero red dots, caption "Active only at the delivery
+  time — Normal delivery is 37-40 weeks, premature before 37, late after
+  40". Left `core` alone (it's already aligned with `requiredFields`,
+  which must stay `core` regardless of what a spec page shows, or a
+  required field could be hidden via Customize and Mark Complete would
+  become unreachable — see `delivery.ts`'s comment). Added
+  `classifyDeliveryTiming()`, shown live next to the form the same way
+  Robson's classification result is.
+- **Robson**: already fully compliant. Its "user has to click Classify
+  before saving" note is deliberately *not* implemented literally — this
+  app auto-computes and live-displays the classification instead (see
+  `robsonResult` in `TabRecordView`) and already blocks **Mark Complete**
+  until it resolves, which achieves the same guarantee without adding a
+  manual step or (worse) blocking **Save as Draft**, which nothing in this
+  app is allowed to do.
+- **Treatments**: already fully compliant — field names, order, and the
+  row-per-visit/row-per-course layout all matched.
 
 ---
 

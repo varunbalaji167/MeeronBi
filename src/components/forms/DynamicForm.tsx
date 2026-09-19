@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { TabConfig, isGridSection, isRepeatingSection } from "@/domain/tabs";
 import { getIncompleteReasons, getFieldLevelErrors } from "@/domain/validation";
+import { GestationalAge } from "@/domain/gestationalAge";
 import PlainSection from "./sections/PlainSection";
 import GridSection from "./sections/GridSection";
 import RepeatingSection from "./sections/RepeatingSection";
@@ -28,6 +29,8 @@ interface Props {
   extra?: React.ReactNode;
   /** e.g. a "Customize fields" button — rendered next to the status badge. */
   headerActions?: React.ReactNode;
+  /** The patient's current gestational age (from Personal's LMP) — only passed by Ultrasound, for its `recommendedWindow` badges. See GestationalWindowBadge. */
+  ga?: GestationalAge | null;
 }
 
 export default function DynamicForm({
@@ -40,6 +43,7 @@ export default function DynamicForm({
   onDelete,
   extra,
   headerActions,
+  ga,
 }: Props) {
   const [data, setData] = useState<Record<string, any>>(initialData || {});
   const [status, setStatus] = useState<Status>(initialStatus || "DRAFT");
@@ -231,7 +235,9 @@ export default function DynamicForm({
 
       {tab.sections.map((section, idx) => {
         if (isGridSection(section)) {
-          return <GridSection key={idx} section={section} data={data} setField={setField} readOnly={readOnly} />;
+          return (
+            <GridSection key={idx} section={section} data={data} setField={setField} readOnly={readOnly} ga={ga} />
+          );
         }
         if (isRepeatingSection(section)) {
           return (
@@ -257,6 +263,7 @@ export default function DynamicForm({
             touched={touched}
             onBlurField={touch}
             visibleFieldNames={visibleFieldNames}
+            ga={ga}
           />
         );
       })}

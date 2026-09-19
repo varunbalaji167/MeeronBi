@@ -1,6 +1,17 @@
 import { TabConfig } from "./types";
 import { yesNo } from "./sharedOptions";
 
+// The source spec's Delivery page carries zero red dots anywhere (unlike
+// Personal/History/Investigation) — its caption instead reads "Active only
+// at the delivery time", describing a different concept (this tab's real
+// relevance) rather than the usual shown-by-default/customizable split.
+// `core` here is therefore kept aligned with `requiredFields` below, not
+// with the page's (absent) red dots: a required-to-complete field must
+// never be hideable via "Customize fields", or Mark Complete would become
+// permanently unreachable for a hospital that hid it. apgarScore and
+// nicuAdmission are core for the same "don't let this disappear"
+// pragmatic reason even though they aren't required, since they're two of
+// the handful of fields every delivery record realistically needs.
 export const deliveryTab: TabConfig = {
   key: "delivery",
   label: "Delivery",
@@ -42,3 +53,21 @@ export const deliveryTab: TabConfig = {
     },
   ],
 };
+
+/**
+ * Per the source spec's Delivery page caption ("Normal delivery is 37-40
+ * weeks, premature delivery before 37 and late delivery after 40 weeks"):
+ * classifies delivery timing from "118. POG on Delivery (Weeks)". Pure and
+ * live-computed — see TabRecordView's `deliveryTiming`, shown the same way
+ * Robson's live classification result is (an `extra` panel below the
+ * form), rather than gating anything: this is a label, not a validation
+ * rule, consistent with how the rest of this app treats clinical
+ * categorization (informational, never blocking).
+ */
+export function classifyDeliveryTiming(pogWeeks: unknown): { label: string; tone: "warn" | "ok" } | null {
+  const n = typeof pogWeeks === "string" ? parseFloat(pogWeeks) : typeof pogWeeks === "number" ? pogWeeks : NaN;
+  if (Number.isNaN(n)) return null;
+  if (n < 37) return { label: "Premature delivery (before 37 weeks)", tone: "warn" };
+  if (n <= 40) return { label: "Normal delivery (37–40 weeks)", tone: "ok" };
+  return { label: "Late delivery (after 40 weeks)", tone: "warn" };
+}

@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
-import { assertPatientRecordAccessible, requireAdminSession } from "@/server/auth/guards";
+import { assertPatientRecordAccessible, requireAdminSessionForPatient } from "@/server/auth/guards";
 import { isKnownTabKey, getTabRecord, saveTabRecord, deleteTabRecord } from "./tabRecordRepository";
 import { syncPatientSummaryFromPersonal } from "./patientRepository";
-import { prisma } from "@/server/db/prisma";
 import { getTabByKey } from "@/domain/tabs";
 import { getIncompleteReasons, getFieldLevelErrors } from "@/domain/validation";
 import { NotFoundError, ValidationError } from "@/server/http/errors";
@@ -27,7 +26,10 @@ export async function handleTabGet(tabKey: string, patientId: string) {
 
 export async function handleTabSave(tabKey: string, patientId: string, req: Request) {
   // Only staff (ADMIN) may write data — patients are read-only viewers.
-  await requireAdminSession();
+  // requireAdminSessionForPatient (not the plain requireAdminSession) also
+  // confirms this patient belongs to the admin's own facility — see
+  // server/auth/guards.ts.
+  await requireAdminSessionForPatient(patientId);
   if (!isKnownTabKey(tabKey)) throw new NotFoundError("Unknown tab.");
 
   const body = await req.json();
@@ -48,9 +50,8 @@ export async function handleTabSave(tabKey: string, patientId: string, req: Requ
     }
   }
 
-  const patient = await prisma.patient.findUnique({ where: { id: patientId }, select: { id: true } });
-  if (!patient) throw new NotFoundError("Patient not found.");
-
+  // requireAdminSessionForPatient above already confirmed this patient
+  // exists and is at the caller's facility — no need to re-check here.
   const record = await saveTabRecord(tabKey, patientId, data, status);
 
   // The Personal tab is the single source of truth for name/MRD/phone —
@@ -62,7 +63,7 @@ export async function handleTabSave(tabKey: string, patientId: string, req: Requ
   if (tabKey === "personal") {
     const sync = await syncPatientSummaryFromPersonal(patientId, record.data);
     if (sync.mrnConflict) {
-      fieldErrors = { mrn: "This CR No./MRD is already used by another patient — choose a different one." };
+      fieldErrors = { mrn: "This CR No./MRD is already used by another patient at your facility — choose a different one." };
     }
   }
 
@@ -70,7 +71,7 @@ export async function handleTabSave(tabKey: string, patientId: string, req: Requ
 }
 
 export async function handleTabDelete(tabKey: string, patientId: string) {
-  await requireAdminSession();
+  await requireAdminSessionForPatient(patientId);
   if (!isKnownTabKey(tabKey)) throw new NotFoundError("Unknown tab.");
 
   await deleteTabRecord(tabKey, patientId);

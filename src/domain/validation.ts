@@ -1,4 +1,4 @@
-import { FieldConfig, TabConfig } from "./tabs/types";
+import { FieldConfig, GridSectionConfig, RepeatingSectionConfig, TabConfig, isGridSection, isPlainSection, isRepeatingSection } from "./tabs/types";
 import { isPhoneValue, validatePhoneValue, sanitizePhoneValue } from "./phone";
 
 /** Validates a single field's value against its `validation` rule (and, for
@@ -38,7 +38,7 @@ export function validateAllFields(tab: TabConfig, data: Record<string, any>): Re
   const errors: Record<string, string> = {};
 
   for (const section of tab.sections) {
-    if (!("fields" in section)) continue;
+    if (!isPlainSection(section)) continue;
     for (const field of section.fields) {
       const err = validateFieldValue(field, data[field.name]);
       if (err) errors[field.name] = err;
@@ -59,24 +59,133 @@ export function validateAllFields(tab: TabConfig, data: Record<string, any>): Re
  * Server-side normalization applied to EVERY save, draft or complete,
  * regardless of what the client sent — this is the "never trust the
  * client" half of validation. A request built by hand (bypassing the
- * browser entirely) could otherwise write a malformed phone number
- * straight into the database; this brings any phone-type field back in
- * line with its country's length rule before it's ever persisted.
- * Sanitizing (trimming to a valid shape) is intentionally separate from
+ * browser entirely, or crafted maliciously) could otherwise write anything
+ * at all into a JSON column with no schema of its own: an out-of-list
+ * `select` value, a thousand-entry array in a repeating section, a
+ * multi-megabyte string in a `textarea`, or payload keys that don't
+ * correspond to any field this tab even has. This rebuilds the record from
+ * scratch using the tab's OWN field list as an allowlist (rather than
+ * patching the client's object in place) — anything not declared on the
+ * tab simply isn't carried over — and narrows every kept value down to
+ * what its field type could honestly hold. Sanitizing (silently cleaning
+ * up a value, or dropping it to null/empty) is intentionally separate from
  * *rejecting* the save — see getIncompleteReasons()/validateAllFields()
- * for the "Mark Complete" gate, which does reject.
+ * for the "Mark Complete" gate, which does reject; a draft is never
+ * blocked, only ever cleaned.
  */
 export function sanitizeTabData(tab: TabConfig, data: Record<string, any>): Record<string, any> {
-  const result: Record<string, any> = { ...data };
+  const result: Record<string, any> = {};
+
   for (const section of tab.sections) {
-    if (!("fields" in section)) continue;
-    for (const field of section.fields) {
-      if (field.type === "phone" && isPhoneValue(result[field.name])) {
-        result[field.name] = sanitizePhoneValue(result[field.name]);
+    if (isPlainSection(section)) {
+      for (const field of section.fields) {
+        if (!(field.name in data)) continue;
+        result[field.name] = sanitizeValueForType(field, data[field.name]);
       }
+    } else if (isGridSection(section)) {
+      // Grid cells are flat top-level keys ("<row>__<column>") — see
+      // components/forms/sections/GridSection.tsx, which is the other half
+      // of this data shape.
+      for (const row of (section as GridSectionConfig).rows) {
+        for (const col of (section as GridSectionConfig).valueColumns) {
+          const key = `${row.name}__${col.name}`;
+          if (!(key in data)) continue;
+          result[key] = sanitizeValueForType(col, data[key]);
+        }
+      }
+    } else if (isRepeatingSection(section)) {
+      const repeating = section as RepeatingSectionConfig;
+      const rows: any[] = Array.isArray(data[repeating.name]) ? data[repeating.name] : [];
+      // A hand-built request could submit an enormous array purely to
+      // bloat storage — cap it generously above any real `maxCount`/
+      // sensible visit count rather than trusting the client's array
+      // length outright.
+      const cap = repeating.maxCount ?? 60;
+      result[repeating.name] = rows.slice(0, cap).map((row) => {
+        const cleanRow: Record<string, any> = {};
+        if (row && typeof row === "object") {
+          for (const field of repeating.fields) {
+            if (!(field.name in row)) continue;
+            cleanRow[field.name] = sanitizeValueForType(field, row[field.name]);
+          }
+        }
+        return cleanRow;
+      });
     }
   }
+
   return result;
+}
+
+const DEFAULT_MAX_LENGTH: Partial<Record<FieldConfig["type"], number>> = {
+  text: 300,
+  textarea: 3000,
+};
+
+/** Strips ASCII control characters — no legitimate clinical free text needs them, and they're a classic way to smuggle/obfuscate something through a text box. Textarea keeps newlines and tabs; single-line text fields don't need those either. */
+function stripControlChars(s: string, keepNewlines: boolean): string {
+  return keepNewlines ? s.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "") : s.replace(/[\x00-\x1F\x7F]/g, "");
+}
+
+/**
+ * Narrows one value down to whatever its field type could honestly hold.
+ * Never throws — an unexpected shape is dropped to null/empty rather than
+ * rejected, so this stays safe to run on every draft save (see
+ * sanitizeTabData above for why drafts are never blocked). Shared by plain
+ * fields, grid value-columns, and repeating-section row fields, since all
+ * three describe a cell the same way (`{ type, options?, allowOther?,
+ * maxLength? }`).
+ */
+function sanitizeValueForType(
+  field: { type: FieldConfig["type"]; options?: string[]; allowOther?: boolean; maxLength?: number },
+  value: any
+): any {
+  if (field.type === "multiselect") {
+    if (!Array.isArray(value)) return [];
+    const allowed = new Set(field.options ?? []);
+    const kept = value.filter((v) => typeof v === "string" && allowed.has(v));
+    // De-dupe and cap at the number of real options — a hand-built request
+    // repeating the same value thousands of times is the same "unbounded
+    // array" risk a text length cap solves for free text.
+    return Array.from(new Set(kept)).slice(0, allowed.size || kept.length);
+  }
+
+  if (value === undefined || value === null) return value; // nothing to sanitize
+
+  switch (field.type) {
+    case "phone":
+      return isPhoneValue(value) ? sanitizePhoneValue(value) : null;
+
+    case "select":
+    case "radio": {
+      if (typeof value !== "string") return null;
+      const trimmed = value.trim();
+      if (trimmed === "") return null;
+      if (field.options?.includes(trimmed)) return trimmed;
+      // Not one of the listed options — only keep it if this field
+      // explicitly allows a custom "Other" value (see FieldConfig.allowOther),
+      // and even then it's free text now, so cap its length.
+      return field.allowOther ? trimmed.slice(0, 120) : null;
+    }
+
+    case "number":
+      return typeof value === "number" && Number.isFinite(value) ? value : null;
+
+    case "date":
+      if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}/.test(value)) return null;
+      return Number.isNaN(new Date(value).getTime()) ? null : value;
+
+    case "time":
+      return typeof value === "string" && /^\d{2}:\d{2}(:\d{2})?$/.test(value) ? value : null;
+
+    case "textarea":
+    case "text":
+    default: {
+      if (typeof value !== "string") return null;
+      const cap = field.maxLength ?? DEFAULT_MAX_LENGTH[field.type] ?? 300;
+      return stripControlChars(value, field.type === "textarea").slice(0, cap).trim();
+    }
+  }
 }
 
 function isEmptyValue(value: any): boolean {
@@ -100,7 +209,7 @@ export function getIncompleteReasons(tab: TabConfig, data: Record<string, any>):
 
   const missing: string[] = [];
   for (const section of tab.sections) {
-    if (!("fields" in section)) continue; // skip grid/repeating sections
+    if (!isPlainSection(section)) continue; // skip grid/repeating sections
     for (const field of section.fields) {
       if (!required.includes(field.name)) continue;
       if (isEmptyValue(data[field.name])) missing.push(field.label);
@@ -117,7 +226,7 @@ export function getMissingRequiredFieldNames(tab: TabConfig, data: Record<string
 
   const missing: string[] = [];
   for (const section of tab.sections) {
-    if (!("fields" in section)) continue;
+    if (!isPlainSection(section)) continue;
     for (const field of section.fields) {
       if (!required.includes(field.name)) continue;
       if (isEmptyValue(data[field.name])) missing.push(field.name);

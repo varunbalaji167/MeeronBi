@@ -7,9 +7,10 @@ export const authOptions: NextAuthOptions = {
   session: {
     strategy: "jwt",
     // Keep people signed in for 30 days so normal navigation across the app
-    // never has to re-authenticate — the JWT cookie itself carries role and
-    // patientId, so every server component/API route can trust it directly
-    // (see server/auth/guards.ts) without a database round trip per request.
+    // never has to re-authenticate — the JWT cookie itself carries role,
+    // patientId and facilityId, so every server component/API route can
+    // trust it directly (see server/auth/guards.ts) without a database
+    // round trip per request.
     maxAge: 30 * 24 * 60 * 60,
   },
   jwt: {
@@ -48,6 +49,7 @@ export const authOptions: NextAuthOptions = {
           name: user.name ?? user.email,
           role: user.role,
           patientId: user.patient?.id ?? null,
+          facilityId: user.facilityId,
         };
       },
     }),
@@ -57,6 +59,7 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.role = (user as any).role;
         token.patientId = (user as any).patientId;
+        token.facilityId = (user as any).facilityId;
       }
       return token;
     },
@@ -65,6 +68,7 @@ export const authOptions: NextAuthOptions = {
         (session.user as any).id = token.sub;
         (session.user as any).role = token.role;
         (session.user as any).patientId = token.patientId;
+        (session.user as any).facilityId = token.facilityId;
       }
       return session;
     },

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Phone, Mail, MapPin, User } from "lucide-react";
 import { FieldConfig } from "@/domain/tabs";
 import {
@@ -26,6 +27,13 @@ interface Props {
 const ICON_MAP = { phone: Phone, email: Mail, location: MapPin, user: User };
 
 export default function FieldInput({ field, value, onChange, onBlur, error, disabled, compact }: Props) {
+  // Always called (rules of hooks) even though only the `allowOther` select
+  // branch below uses it — tracks "the person clicked Other and is mid-way
+  // through typing a custom value" independently of `value` itself, since
+  // once they've cleared the box to start typing, `value` alone can't tell
+  // "empty because Other, about to type" apart from "empty, not started".
+  const [otherMode, setOtherMode] = useState(false);
+
   const Icon = field.icon ? ICON_MAP[field.icon] : null;
   const inputClass = `input-field ${Icon ? "pl-9" : ""} ${
     error ? "!border-rose-400 focus:!border-rose-400 focus:!ring-rose-400" : ""
@@ -116,17 +124,77 @@ export default function FieldInput({ field, value, onChange, onBlur, error, disa
         />
       );
 
-    case "select":
+    case "select": {
+      if (!field.allowOther) {
+        return wrap(
+          <select {...commonProps} value={value ?? ""} onChange={(e) => onChange(e.target.value)}>
+            <option value="">Choose...</option>
+            {field.options?.map((opt) => (
+              <option key={opt} value={opt}>
+                {opt}
+              </option>
+            ))}
+          </select>
+        );
+      }
+
+      // A value that's set but isn't one of the listed options can only be
+      // a previously-saved "Other" entry — treat it the same as the person
+      // having just picked "Other" this session.
+      const isOtherValue = typeof value === "string" && value !== "" && !field.options?.includes(value);
+      const showOtherBox = otherMode || isOtherValue;
+
+      if (showOtherBox) {
+        return wrap(
+          <div className="flex gap-2">
+            <input
+              {...commonProps}
+              type="text"
+              className={`${inputClass} flex-1`}
+              placeholder="Please specify"
+              maxLength={field.maxLength ?? 120}
+              value={value ?? ""}
+              onChange={(e) => onChange(e.target.value)}
+            />
+            {!disabled && (
+              <button
+                type="button"
+                className="shrink-0 whitespace-nowrap text-xs text-brand-600 hover:underline"
+                onClick={() => {
+                  setOtherMode(false);
+                  onChange("");
+                }}
+              >
+                Choose from list
+              </button>
+            )}
+          </div>
+        );
+      }
+
       return wrap(
-        <select {...commonProps} value={value ?? ""} onChange={(e) => onChange(e.target.value)}>
+        <select
+          {...commonProps}
+          value={value ?? ""}
+          onChange={(e) => {
+            if (e.target.value === "__other__") {
+              setOtherMode(true);
+              onChange("");
+            } else {
+              onChange(e.target.value);
+            }
+          }}
+        >
           <option value="">Choose...</option>
           {field.options?.map((opt) => (
             <option key={opt} value={opt}>
               {opt}
             </option>
           ))}
+          <option value="__other__">Other (please specify)</option>
         </select>
       );
+    }
 
     case "multiselect": {
       const selected: string[] = Array.isArray(value) ? value : [];
@@ -200,6 +268,8 @@ export default function FieldInput({ field, value, onChange, onBlur, error, disa
           {...commonProps}
           type="number"
           step="any"
+          min={field.validation?.min}
+          max={field.validation?.max}
           value={value ?? ""}
           onChange={(e) => onChange(e.target.value === "" ? "" : Number(e.target.value))}
         />
@@ -210,6 +280,12 @@ export default function FieldInput({ field, value, onChange, onBlur, error, disa
         <input
           {...commonProps}
           type="text"
+          // Native `pattern` is supplementary DOM-level hinting (mobile
+          // keyboards, browser-native validation UI) — the actual
+          // enforcement a person sees is the onBlur check that produces
+          // `error` above, since a bare `pattern` mismatch gives no visible
+          // feedback of its own until form submission.
+          pattern={field.validation?.pattern?.source}
           value={value ?? ""}
           onChange={(e) => onChange(e.target.value)}
         />

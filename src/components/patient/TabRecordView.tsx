@@ -5,8 +5,9 @@ import DynamicForm from "../forms/DynamicForm";
 import FieldCustomizer from "../forms/FieldCustomizer";
 import FormSkeleton from "../ui/FormSkeleton";
 import ErrorBanner from "../ui/ErrorBanner";
-import { getTabByKey, computeRobsonGroup } from "@/domain/tabs";
+import { getTabByKey, computeRobsonGroup, classifyDeliveryTiming } from "@/domain/tabs";
 import { isCustomizable, resolveVisibleFieldNames, getFieldsWithData } from "@/domain/fieldVisibility";
+import { computeGestationalAge } from "@/domain/gestationalAge";
 import { useTabRecord } from "@/hooks/useTabRecord";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { useTabForm } from "@/context/TabFormContext";
@@ -35,6 +36,29 @@ export default function TabRecordView({ tabKey, patientId, readOnly }: Props) {
   const { showToast } = useToast();
   const { activeForm } = useTabForm();
   const customizerTitleId = useId();
+
+  // Only fetched for the Ultrasound tab, whose `recommendedWindow` badges
+  // (see domain/tabs/ultrasound.ts) need the Personal tab's LMP to compute
+  // gestational age — a genuinely cross-tab read, the first one in this
+  // app. Like field-visibility preferences, this is a nice-to-have: if it
+  // fails, the ultrasound sections just render without their timing
+  // badges rather than blocking the page.
+  const [personalLmp, setPersonalLmp] = useState<string | null>(null);
+  useEffect(() => {
+    if (tabKey !== "ultrasound") return;
+    let cancelled = false;
+    fetch(`/api/patients/${patientId}/personal`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => {
+        if (!cancelled) setPersonalLmp(json?.data?.lmp ?? null);
+      })
+      .catch(() => {
+        /* nice-to-have — see comment above */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [tabKey, patientId]);
 
   // Close the field-customizer overlay on Escape, same as ConfirmDialog.
   useEffect(() => {
@@ -97,6 +121,17 @@ export default function TabRecordView({ tabKey, patientId, readOnly }: Props) {
       ? computeRobsonGroup(activeForm?.tabKey === "robson" ? activeForm.data : record.data)
       : null;
 
+  // Same live-read pattern as Robson above, for the Delivery tab's
+  // term/premature/late classification (see classifyDeliveryTiming).
+  const deliveryTiming =
+    tab.key === "delivery"
+      ? classifyDeliveryTiming(
+          (activeForm?.tabKey === "delivery" ? activeForm.data : record.data)?.pogOnDeliveryWeeks
+        )
+      : null;
+
+  const ga = tab.key === "ultrasound" ? computeGestationalAge(personalLmp) : null;
+
   return (
     <>
       <DynamicForm
@@ -107,6 +142,7 @@ export default function TabRecordView({ tabKey, patientId, readOnly }: Props) {
         visibleFieldNames={visibleFieldNames}
         onSave={record.save}
         onDelete={readOnly ? undefined : record.remove}
+        ga={ga}
         headerActions={
           canCustomize ? (
             <button
@@ -127,6 +163,19 @@ export default function TabRecordView({ tabKey, patientId, readOnly }: Props) {
               </p>
               {!robsonResult && (
                 <p className="mt-1 text-xs text-ink-faint">Answer all 6 questions above to classify.</p>
+              )}
+            </div>
+          ) : tab.key === "delivery" ? (
+            <div
+              className={`panel border-l-2 ${deliveryTiming?.tone === "warn" ? "border-gold-200" : "border-brand-300"}`}
+              aria-live="polite"
+            >
+              <p className="text-sm text-ink-soft">Delivery timing</p>
+              <p className={`mt-1 font-display text-xl italic ${deliveryTiming?.tone === "warn" ? "text-gold-600" : "text-brand-700"}`}>
+                {deliveryTiming ? deliveryTiming.label : "—"}
+              </p>
+              {!deliveryTiming && (
+                <p className="mt-1 text-xs text-ink-faint">Enter &ldquo;POG on Delivery (Weeks)&rdquo; above to classify.</p>
               )}
             </div>
           ) : undefined

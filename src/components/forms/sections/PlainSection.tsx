@@ -2,6 +2,8 @@
 
 import { SectionConfig } from "@/domain/tabs";
 import FieldInput from "../FieldInput";
+import GestationalWindowBadge from "../GestationalWindowBadge";
+import { GestationalAge } from "@/domain/gestationalAge";
 
 interface Props {
   section: SectionConfig;
@@ -13,6 +15,8 @@ interface Props {
   onBlurField: (name: string) => void;
   /** null/undefined = show every field (no customization applies to this tab). */
   visibleFieldNames?: Set<string> | null;
+  /** Only passed by tabs that use `recommendedWindow` (currently Ultrasound) — see GestationalWindowBadge. */
+  ga?: GestationalAge | null;
 }
 
 export default function PlainSection({
@@ -24,6 +28,7 @@ export default function PlainSection({
   touched,
   onBlurField,
   visibleFieldNames,
+  ga,
 }: Props) {
   const fields = visibleFieldNames ? section.fields.filter((f) => visibleFieldNames.has(f.name)) : section.fields;
   if (fields.length === 0) return null; // every field in this section is hidden — don't render an empty panel
@@ -35,8 +40,9 @@ export default function PlainSection({
   return (
     <section className="panel">
       {section.title && (
-        <h3 className="mb-4 border-l-2 border-brand-200 pl-3 text-sm font-semibold uppercase tracking-wide text-ink-soft">
+        <h3 className="mb-4 flex flex-wrap items-center border-l-2 border-brand-200 pl-3 text-sm font-semibold uppercase tracking-wide text-ink-soft">
           {section.title}
+          {section.recommendedWindow && <GestationalWindowBadge window={section.recommendedWindow} ga={ga ?? null} />}
         </h3>
       )}
       <div className={`grid grid-cols-1 gap-4 ${gridClass}`}>

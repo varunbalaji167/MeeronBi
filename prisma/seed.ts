@@ -23,7 +23,28 @@ function addYears(d: Date, years: number): Date {
   return copy;
 }
 
-async function seedAdmin() {
+async function seedFacility() {
+  const slug = "default";
+  const existing = await prisma.facility.findUnique({ where: { slug } });
+  if (existing) {
+    console.log(`Facility "${existing.name}" (slug: ${slug}) already exists — skipping.`);
+    return existing;
+  }
+
+  const facility = await prisma.facility.create({
+    data: {
+      slug,
+      name: "Ningombam Angouton Memorial Trust Hospital",
+      stateCode: "MN", // Manipur
+      countryCode: "IN",
+    },
+  });
+
+  console.log(`Created facility "${facility.name}" (slug: ${slug}).`);
+  return facility;
+}
+
+async function seedAdmin(facilityId: string) {
   const email = process.env.SEED_ADMIN_EMAIL || "admin@meeronbi.org";
   const password = process.env.SEED_ADMIN_PASSWORD || "ChangeMe123!";
 
@@ -35,7 +56,7 @@ async function seedAdmin() {
 
   const passwordHash = await bcrypt.hash(password, 10);
   const admin = await prisma.user.create({
-    data: { email, passwordHash, name: "System Admin", role: "ADMIN" },
+    data: { email, passwordHash, name: "System Admin", role: "ADMIN", facilityId },
   });
 
   console.log(`Created admin user:
@@ -45,9 +66,9 @@ Change this password after first login.`);
   return admin;
 }
 
-async function seedDemoPatient(createdById: string) {
+async function seedDemoPatient(createdById: string, facilityId: string) {
   const DEMO_MRN = "DEMO-0001";
-  const existing = await prisma.patient.findUnique({ where: { mrn: DEMO_MRN } });
+  const existing = await prisma.patient.findUnique({ where: { facilityId_mrn: { facilityId, mrn: DEMO_MRN } } });
   if (existing) {
     console.log(`Demo patient (MRD ${DEMO_MRN}) already exists — skipping.`);
     return;
@@ -315,6 +336,7 @@ async function seedDemoPatient(createdById: string) {
       mrn: DEMO_MRN,
       contactNo: formatPhoneValue(personalData.contactNo),
       createdById,
+      facilityId,
       personal: { create: { data: personalData, status: "COMPLETE" } },
       history: { create: { data: historyData, status: "COMPLETE" } },
       investigation: { create: { data: investigationData, status: "COMPLETE" } },
@@ -342,6 +364,7 @@ async function seedDemoPatient(createdById: string) {
       email: patientEmail,
       passwordHash,
       role: "PATIENT",
+      facilityId,
       patient: { connect: { id: patient.id } },
     },
   });
@@ -354,8 +377,9 @@ async function seedDemoPatient(createdById: string) {
 }
 
 async function main() {
-  const admin = await seedAdmin();
-  await seedDemoPatient(admin.id);
+  const facility = await seedFacility();
+  const admin = await seedAdmin(facility.id);
+  await seedDemoPatient(admin.id, facility.id);
 }
 
 main()

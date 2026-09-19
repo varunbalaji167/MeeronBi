@@ -19,6 +19,16 @@
 // public trends page (delivery mode, Robson group, admission type, baby
 // weight) are ALSO promoted to real typed columns, denormalized alongside
 // the JSON blob, so trend queries don't need to parse JSON in MySQL.
+//
+// Multi-tenancy: every Patient/User/TabFieldPreference belongs to exactly
+// one Facility (the tenant boundary). This was added before a second
+// facility ever existed on purpose — see docs/SCALING_PLAN.md §3 for why
+// retrofitting a tenant column onto live patient data later is a much
+// riskier operation than deciding it up front. The 7 tab-record tables
+// below don't carry `facilityId` directly; they're scoped transitively
+// through `patientId -> Patient.facilityId`, checked once at the access-
+// control layer (server/auth/guards.ts) rather than duplicated onto every
+// table.
 // ─────────────────────────────────────────────────────────────────────────
 
 generator client {
@@ -40,6 +50,36 @@ enum RecordStatus {
   COMPLETE
 }
 
+// The tenant. Every other model below belongs to exactly one Facility —
+// this is THE foundational multi-tenancy boundary everything else in the
+// app is scoped through (see server/auth/guards.ts, and every repository
+// under server/*). Region fields are deliberately flat metadata rather
+// than a normalized Country/State table tree: a state→country rollup is a
+// GROUP BY on these two columns, not a join, and there's no evidence yet
+// of a real requirement (e.g. per-state admin accounts) that would justify
+// more structure than that. See docs/SCALING_PLAN.md §3-4 for the full
+// reasoning behind introducing this now, while there's only one facility,
+// instead of retrofitting it onto live multi-hospital data later.
+model Facility {
+  id          String   @id @default(cuid())
+  name        String
+  // Short, stable, URL-safe identifier — e.g. used to resolve which
+  // facility an unauthenticated public page (like /public/trends) is
+  // for, since a cuid `id` isn't something you'd put in a URL/link by
+  // hand. "default" for the single-facility deployment today.
+  slug        String   @unique
+  stateCode   String? // free-form for now (e.g. "MN" for Manipur) — see note above on why this isn't a foreign key to a States table yet
+  countryCode String   @default("IN") // ISO 3166-1 alpha-2
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users               User[]
+  patients            Patient[]
+  tabFieldPreferences TabFieldPreference[]
+
+  @@map("facilities")
+}
+
 model User {
   id           String    @id @default(cuid())
   email        String    @unique
@@ -49,23 +89,34 @@ model User {
   createdAt    DateTime  @default(now())
   lastLoginAt  DateTime?
 
+  facilityId String
+  facility   Facility @relation(fields: [facilityId], references: [id])
+
   // If role === PATIENT, this links the login to their one patient record.
   patient      Patient?  @relation("PatientAccount")
 
   // Patients this user (as staff) has created.
   createdPatients Patient[] @relation("CreatedBy")
 
+  @@index([facilityId])
   @@map("users")
 }
 
 model Patient {
   id          String   @id @default(cuid())
-  mrn         String?  @unique // "4. CR No./MRD"
+  // Unique PER FACILITY, not globally — two different hospitals can
+  // legitimately both have an "MRD-001". A bare `@unique` here (as this
+  // was before facilities existed) would incorrectly reject that across
+  // tenants.
+  mrn         String?  // "4. CR No./MRD"
   fullName    String // "1. Full Name"
   surname     String? // "2. Surname"
   contactNo   String? // "5. Contact No."
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  facilityId  String
+  facility    Facility @relation(fields: [facilityId], references: [id])
 
   createdById String
   createdBy   User     @relation("CreatedBy", fields: [createdById], references: [id])
@@ -82,6 +133,8 @@ model Patient {
   robson        RobsonClassification?
   treatments    Treatment?
 
+  @@unique([facilityId, mrn])
+  @@index([facilityId])
   @@index([fullName])
   @@map("patients")
 }
@@ -187,16 +240,24 @@ model Treatment {
   @@map("treatments")
 }
 
-// Per-tab, per-deployment "which fields does this hospital actually want to
+// Per-tab, per-FACILITY "which fields does this hospital actually want to
 // collect" — see src/domain/fieldVisibility.ts for the resolution logic.
-// One row per tab; `enabledFieldNames` is a JSON string array. Deliberately
-// NOT per-patient: this is a hospital-wide data-collection standard, not a
-// per-record choice.
+// One row per (facility, tab); `enabledFieldNames` is a JSON string array.
+// Deliberately not per-patient (a hospital-wide data-collection standard,
+// not a per-record choice) — but IS per-facility, since two different
+// hospitals should be free to customize their own field lists
+// independently. This is also the mechanism a future per-region/per-country
+// field-set difference would use (see docs/SCALING_PLAN.md §4) — it's data
+// scoped by facility already, not a code fork, once a facility's region is
+// known.
 model TabFieldPreference {
-  tabKey            String   @id
+  facilityId        String
+  facility          Facility @relation(fields: [facilityId], references: [id])
+  tabKey            String
   enabledFieldNames Json
   updatedAt         DateTime @updatedAt
 
+  @@id([facilityId, tabKey])
   @@map("tab_field_preferences")
 }
 

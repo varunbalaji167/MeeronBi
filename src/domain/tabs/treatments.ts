@@ -15,7 +15,7 @@ export const treatmentsTab: TabConfig = {
       addRowLabel: "Add visit",
       fields: [
         { name: "date", label: "Date", type: "date" },
-        { name: "pogWeeks", label: "POG (Weeks)", type: "text", helpText: "Auto-computed from LMP if left blank" },
+        { name: "pogWeeks", label: "POG (Weeks)", type: "number", helpText: "Auto-computed from LMP if left blank", validation: { min: 0, max: 45, message: "POG should be between 0-45 weeks." } },
         { name: "weightKg", label: "Weight (kg)", type: "number" },
         { name: "bmi", label: "BMI", type: "number", placeholder: "e.g., 20" },
         { name: "bpHigh", label: "BP High", type: "number" },
@@ -33,7 +33,7 @@ export const treatmentsTab: TabConfig = {
       addRowLabel: "Add course",
       fields: [
         { name: "startDate", label: "Course starts on", type: "date" },
-        { name: "pogWeeks", label: "POG (Weeks)", type: "text", helpText: "Auto-computed from LMP if left blank" },
+        { name: "pogWeeks", label: "POG (Weeks)", type: "number", helpText: "Auto-computed from LMP if left blank", validation: { min: 0, max: 45, message: "POG should be between 0-45 weeks." } },
         { name: "condition", label: "Condition", type: "text", placeholder: "e.g., Bronchial asthma" },
         { name: "drug", label: "Drug", type: "text", placeholder: "e.g., Metformin SR" },
         { name: "dosage", label: "Dosage", type: "number" },

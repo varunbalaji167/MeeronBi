@@ -2,19 +2,24 @@
 
 import { GridSectionConfig } from "@/domain/tabs";
 import FieldInput from "../FieldInput";
+import GestationalWindowBadge from "../GestationalWindowBadge";
+import { GestationalAge } from "@/domain/gestationalAge";
 
 interface Props {
   section: GridSectionConfig;
   data: Record<string, any>;
   setField: (name: string, value: any) => void;
   readOnly?: boolean;
+  /** Only passed by tabs that use `recommendedWindow` (currently Ultrasound) — see GestationalWindowBadge. */
+  ga?: GestationalAge | null;
 }
 
-export default function GridSection({ section, data, setField, readOnly }: Props) {
+export default function GridSection({ section, data, setField, readOnly, ga }: Props) {
   return (
     <section className="panel overflow-x-auto">
-      <h3 className="mb-4 border-l-2 border-brand-200 pl-3 text-sm font-semibold uppercase tracking-wide text-ink-soft">
+      <h3 className="mb-4 flex flex-wrap items-center border-l-2 border-brand-200 pl-3 text-sm font-semibold uppercase tracking-wide text-ink-soft">
         {section.title}
+        {section.recommendedWindow && <GestationalWindowBadge window={section.recommendedWindow} ga={ga ?? null} />}
       </h3>
       <table className="w-full min-w-[600px] table-auto border-collapse text-sm">
         <thead>

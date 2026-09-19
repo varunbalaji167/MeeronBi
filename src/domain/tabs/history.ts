@@ -27,19 +27,30 @@ export const historyTab: TabConfig = {
     {
       columns: 4,
       fields: [
-        { name: "dateOfWedding", label: "25. Date of Wedding", type: "date" },
-        { name: "obstetricIndex", label: "26. GARVIDA/Obstetric Index", type: "text", placeholder: "G1P0000", core: true },
-        { name: "infertilityType", label: "27. Infertility Type", type: "select", options: ["None", "Primary", "Secondary"] },
-        { name: "conceptionType", label: "28. Conception Type", type: "select", options: ["Spontaneous", "IUI", "IVF", "ICSI"] },
+        { name: "dateOfWedding", label: "25. Date of Wedding", type: "date", core: true },
+        {
+          name: "obstetricIndex",
+          label: "26. GARVIDA/Obstetric Index",
+          type: "text",
+          placeholder: "G1P0000",
+          core: true,
+          maxLength: 12,
+          // Standard obstetric shorthand: G<gravida>P<para><term><preterm><abortion><living>,
+          // e.g. "G2P1001" — a structured code, not free text, so it gets
+          // pattern validation rather than being left wide open.
+          validation: { pattern: /^G\d{1,2}P\d{3,4}$/, message: "Use standard obstetric notation, e.g. G2P1001." },
+        },
+        { name: "infertilityType", label: "27. Infertility Type", type: "select", options: ["None", "Primary", "Secondary"], core: true },
+        { name: "conceptionType", label: "28. Conception Type", type: "select", options: ["Spontaneous", "IUI", "IVF", "ICSI"], core: true },
 
         { name: "oicMethod", label: "29. OIC Method", type: "multiselect", options: ["Clomiphene", "FSH", "HMG", "Letrozole", "Gonadotropins"] },
         { name: "noOfBoys", label: "30. No of Boys", type: "select", options: countOptions },
         { name: "noOfGirls", label: "31. No of Girls", type: "select", options: countOptions },
-        { name: "noCesareanDelivery", label: "32. No. Cesarean delivery", type: "select", options: countOptions },
+        { name: "noCesareanDelivery", label: "32. No. Cesarean delivery", type: "select", options: countOptions, core: true },
 
-        { name: "noVaginalDelivery", label: "33. No. Vaginal delivery", type: "select", options: countOptions },
-        { name: "lastChildbirth", label: "34. Last Childbirth", type: "select", options: ["<1 year ago", "1-2 years ago", "2-5 years ago", ">5 years ago", "N/A - first pregnancy"] },
-        { name: "noSponAbortions", label: "35. No. of Spon. Abortions", type: "select", options: countOptions },
+        { name: "noVaginalDelivery", label: "33. No. Vaginal delivery", type: "select", options: countOptions, core: true },
+        { name: "lastChildbirth", label: "34. Last Childbirth", type: "select", options: ["<1 year ago", "1-2 years ago", "2-5 years ago", ">5 years ago", "N/A - first pregnancy"], core: true },
+        { name: "noSponAbortions", label: "35. No. of Spon. Abortions", type: "select", options: countOptions, core: true },
         { name: "noMtp", label: "36. No. of MTP", type: "select", options: countOptions },
 
         { name: "reasonForMtp", label: "37. Reason for MTP", type: "select", options: ["N/A", "Fetal anomaly", "Medical indication", "Personal choice", "Other"] },
@@ -48,20 +59,32 @@ export const historyTab: TabConfig = {
     {
       columns: 3,
       fields: [
-        { name: "medicalHistory", label: "38. Medical History", type: "multiselect", options: ["APLA", "Athritis", "Bronchial Asthma", "Cardiac Disease", "Diabetes", "Hypertension", "Thyroid disorder", "Epilepsy"], core: true },
+        // Neither has a red dot on the source spec's page — unlike most of
+        // this tab's other fields, these two are opt-in rather than
+        // shown-by-default.
+        { name: "medicalHistory", label: "38. Medical History", type: "multiselect", options: ["APLA", "Athritis", "Bronchial Asthma", "Cardiac Disease", "Diabetes", "Hypertension", "Thyroid disorder", "Epilepsy"] },
         { name: "medicalHistoryOthers", label: "Others", type: "text", placeholder: "E.g., Jaudice" },
         { name: "surgicalHistory", label: "39. Surgical History", type: "multiselect", options: ["Appendicectomy", "Cholecystectomy", "Ectopic", "Kidney surgery", "Caesarean"] },
         { name: "surgicalHistoryOthers", label: "Others", type: "text", placeholder: "E.g., Eye" },
-        { name: "pregnancyComplications", label: "40. Pregnancy Complications", type: "multiselect", options: ["Abruption", "Breech", "Cholestasis", "PIH", "GDM", "Placenta Previa"], core: true },
+        { name: "pregnancyComplications", label: "40. Pregnancy Complications", type: "multiselect", options: ["Abruption", "Breech", "Cholestasis", "PIH", "GDM", "Placenta Previa"] },
         { name: "pregnancyComplicationsOthers", label: "Others", type: "text", placeholder: "E.g., bleeding" },
       ],
     },
     {
+      // Transposed, dynamic-column layout: G1 is always shown (the source
+      // spec marks the G1 column header with a red dot — the only default
+      // entry), and "Add Gravida" appends G2, G3, ... up to 10 ("From G2 to
+      // G6 or G10, allow users to add by allowing users to click an 'Add
+      // Gravida' button" — 10 is the more inclusive reading, so a
+      // higher-gravida patient's history isn't cut off).
       kind: "repeating",
       name: "obstetricHistory",
       title: "41. Obstetric History",
       columnLabelPrefix: "G",
-      fixedCount: 6,
+      transposed: true,
+      minCount: 1,
+      maxCount: 10,
+      addRowLabel: "Add Gravida",
       fields: obstetricHistoryRowFields,
     } as RepeatingSectionConfig,
   ],

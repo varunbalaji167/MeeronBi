@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { getSession } from "@/server/auth/guards";
 import { getPatientHeaderInfo } from "@/server/patients/patientRepository";
 import PatientTabNav from "@/components/patient/PatientTabNav";
 import PatientHeader from "@/components/patient/PatientHeader";
@@ -13,7 +14,16 @@ export default async function PatientLayout({
   children: React.ReactNode;
   params: { id: string };
 }) {
-  const patient = await getPatientHeaderInfo(params.id);
+  // Facility-scoped: a patient at a different facility 404s here rather
+  // than rendering — this page has no other access-control check of its
+  // own (the tab data underneath is separately guarded per-request, but
+  // the header/nav shell itself should never render for a patient outside
+  // the signed-in admin's facility). Middleware only confirms the ADMIN
+  // role, not facility ownership, so this check is still needed here.
+  const session = await getSession();
+  if (!session?.user || session.user.role !== "ADMIN") notFound();
+
+  const patient = await getPatientHeaderInfo(params.id, session.user.facilityId);
   if (!patient) notFound();
 
   const statusByKey: Record<string, StageStatus> = {};

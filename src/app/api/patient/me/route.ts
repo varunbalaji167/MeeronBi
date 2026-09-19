@@ -7,7 +7,7 @@ import { NotFoundError } from "@/server/http/errors";
 export const GET = withApiErrorHandling(async () => {
   const session = await requirePatientSession();
 
-  const patient = await getFullPatientRecord(session.user.patientId!);
+  const patient = await getFullPatientRecord(session.user.patientId!, session.user.facilityId);
   if (!patient) throw new NotFoundError("No record found.");
 
   return NextResponse.json({ patient });

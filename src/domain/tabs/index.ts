@@ -15,6 +15,7 @@ import { treatmentsTab } from "./treatments";
 export * from "./types";
 export { personalTab, historyTab, investigationTab, ultrasoundTab, deliveryTab, robsonTab, treatmentsTab };
 export { computeRobsonGroup } from "./robson";
+export { classifyDeliveryTiming } from "./delivery";
 
 /** All 7 tabs, in the order they're navigated (Personal → ... → Treatments). */
 export const allTabs: TabConfig[] = [

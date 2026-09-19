@@ -11,19 +11,19 @@ import { NotFoundError } from "@/server/http/errors";
 // feature's full design rationale.
 
 export const GET = withApiErrorHandling(async (_req: NextRequest, { params }: { params: { tabKey: string } }) => {
-  await requireAdminSession();
+  const session = await requireAdminSession();
   if (!getTabByKey(params.tabKey)) throw new NotFoundError("Unknown tab.");
 
-  const enabledFieldNames = await getStoredFieldSelection(params.tabKey);
+  const enabledFieldNames = await getStoredFieldSelection(session.user.facilityId, params.tabKey);
   return NextResponse.json({ enabledFieldNames });
 });
 
 export const PUT = withApiErrorHandling(async (req: NextRequest, { params }: { params: { tabKey: string } }) => {
-  await requireAdminSession();
+  const session = await requireAdminSession();
   if (!getTabByKey(params.tabKey)) throw new NotFoundError("Unknown tab.");
 
   const body = await req.json().catch(() => ({}));
   const enabledFieldNames = Array.isArray(body?.enabledFieldNames) ? body.enabledFieldNames : [];
-  await saveFieldSelection(params.tabKey, enabledFieldNames);
+  await saveFieldSelection(session.user.facilityId, params.tabKey, enabledFieldNames);
   return NextResponse.json({ ok: true });
 });

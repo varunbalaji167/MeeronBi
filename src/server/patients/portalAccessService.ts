@@ -29,7 +29,7 @@ export async function setPatientPortalAccess(
 
   const patient = await prisma.patient.findUnique({
     where: { id: patientId },
-    select: { id: true, userId: true },
+    select: { id: true, userId: true, facilityId: true },
   });
   if (!patient) throw new NotFoundError("Patient not found.");
 
@@ -62,7 +62,10 @@ export async function setPatientPortalAccess(
           data: { email, passwordHash, role: "PATIENT" },
         })
       : await prisma.user.create({
-          data: { email, passwordHash, role: "PATIENT", patient: { connect: { id: patient.id } } },
+          // The portal login's own facilityId always matches the patient
+          // it belongs to — a patient login is never itself "at" a
+          // different facility than their own care record.
+          data: { email, passwordHash, role: "PATIENT", facilityId: patient.facilityId, patient: { connect: { id: patient.id } } },
         });
 
     return { email: user.email };
