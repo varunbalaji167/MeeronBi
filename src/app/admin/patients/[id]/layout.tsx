@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getSession } from "@/server/auth/guards";
+import { assertPatientRecordAccessible } from "@/server/auth/guards";
 import { getPatientHeaderInfo } from "@/server/patients/patientRepository";
 import PatientTabNav from "@/components/patient/PatientTabNav";
 import PatientHeader from "@/components/patient/PatientHeader";
@@ -14,16 +14,28 @@ export default async function PatientLayout({
   children: React.ReactNode;
   params: { id: string };
 }) {
-  // Facility-scoped: a patient at a different facility 404s here rather
-  // than rendering — this page has no other access-control check of its
-  // own (the tab data underneath is separately guarded per-request, but
-  // the header/nav shell itself should never render for a patient outside
-  // the signed-in admin's facility). Middleware only confirms the ADMIN
-  // role, not facility ownership, so this check is still needed here.
-  const session = await getSession();
-  if (!session?.user || session.user.role !== "ADMIN") notFound();
+  // Reuses the same guard the per-tab API routes use (see
+  // server/auth/guards.ts), rather than duplicating the ADMIN/SUPER_ADMIN/
+  // facility logic inline here a second time — it already handles
+  // SUPER_ADMIN's cross-facility access correctly, which a bare
+  // `role !== "ADMIN"` check here previously did not (SUPER_ADMIN was
+  // wrongly 404'd). notFound() covers both "no session" and "not this
+  // caller's patient" the same way the API layer does.
+  let session;
+  try {
+    session = await assertPatientRecordAccessible(params.id);
+  } catch {
+    notFound();
+  }
+  if (session.user.role === "PATIENT") notFound(); // this layout is staff-only; the patient portal has its own read-only view
 
-  const patient = await getPatientHeaderInfo(params.id, session.user.facilityId);
+  // SUPER_ADMIN isn't scoped to one facility (see guards.ts) — omitting
+  // the filter here is safe specifically because assertPatientRecordAccessible
+  // above already confirmed this exact patient is reachable by this session.
+  const patient = await getPatientHeaderInfo(
+    params.id,
+    session.user.role === "SUPER_ADMIN" ? undefined : session.user.facilityId
+  );
   if (!patient) notFound();
 
   const statusByKey: Record<string, StageStatus> = {};

@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A new commit on the same branch/PR cancels whatever's still running for
+# it, instead of letting a superseded run keep burning minutes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Lint, typecheck, and test
+    runs-on: ubuntu-latest
+    env:
+      # No real database is used anywhere in this job — `prisma generate`
+      # only reads schema.prisma (it never connects), and the domain/ test
+      # suite is pure logic with no Prisma import chain at all (see
+      # docs/TESTING.md). These exist purely so Prisma's own env validation
+      # doesn't complain about a missing variable at generate-time.
+      DATABASE_URL: "mysql://ci:ci@localhost:3306/ci_placeholder"
+      NEXTAUTH_SECRET: "ci-placeholder-secret-not-used-for-anything-real"
+      NEXTAUTH_URL: "http://localhost:3000"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      # Needed before lint/typecheck — several files import @prisma/client's
+      # generated types, which don't exist until this runs once.
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Lint
+        run: npm run lint
+
+      # Whole-project typecheck, not just the tested domain/ layer — this is
+      # what actually catches a wrong Prisma field name or a mismatched prop
+      # type in server/ or app/, which the test suite below doesn't reach.
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests (domain/ — see docs/TESTING.md for scope)
+        run: npm test

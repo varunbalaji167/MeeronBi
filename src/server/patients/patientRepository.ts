@@ -136,9 +136,17 @@ export async function getPatientById(id: string, facilityId: string) {
   });
 }
 
-export async function getPatientHeaderInfo(id: string, facilityId: string) {
+/**
+ * `facilityId` is optional specifically for the SUPER_ADMIN case — that
+ * role's own facilityId is an administrative home (a seeded "HQ"
+ * facility), not a filter that should ever apply to which PATIENT they
+ * can look up (see server/auth/guards.ts's module comment). Only omit it
+ * when the caller has already verified access another way (a SUPER_ADMIN
+ * session) — every other caller must pass the real facility filter.
+ */
+export async function getPatientHeaderInfo(id: string, facilityId?: string) {
   return prisma.patient.findFirst({
-    where: { id, facilityId },
+    where: facilityId ? { id, facilityId } : { id },
     select: {
       id: true,
       fullName: true,

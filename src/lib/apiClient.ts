@@ -14,14 +14,17 @@ import type { ErrorCode } from "@/server/http/errors";
 export class ApiError extends Error {
   readonly status: number;
   readonly code?: ErrorCode;
+  /** Namespaced specific-reason code, e.g. "ANALYTICS.UNKNOWN_FIELD" — see server/http/errors.ts. Most errors don't have one; only check this when you genuinely need to branch on the specific reason, not just the coarse `code`. */
+  readonly detail?: string;
   readonly fieldErrors?: Record<string, string>;
 
-  constructor(message: string, status: number, code?: ErrorCode, fieldErrors?: Record<string, string>) {
+  constructor(message: string, status: number, code?: ErrorCode, fieldErrors?: Record<string, string>, detail?: string) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.code = code;
     this.fieldErrors = fieldErrors;
+    this.detail = detail;
   }
 }
 
@@ -33,7 +36,7 @@ export class ApiError extends Error {
  */
 export async function toApiError(res: Response, fallbackMessage = "Something went wrong."): Promise<ApiError> {
   const json = await res.json().catch(() => null);
-  return new ApiError(json?.error || fallbackMessage, res.status, json?.code, json?.fieldErrors);
+  return new ApiError(json?.error || fallbackMessage, res.status, json?.code, json?.fieldErrors, json?.detail);
 }
 
 /**

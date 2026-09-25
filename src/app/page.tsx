@@ -135,11 +135,11 @@ export default function HomePage() {
           </h2>
           <p className="mt-5 max-w-2xl text-[15px] leading-relaxed text-ink-soft">
             Antenatal care generates a lot of data — history, labs, scans, delivery outcomes —
-            but it's often scattered across paper registers that are hard to search and harder
+            but it&apos;s often scattered across paper registers that are hard to search and harder
             to learn from. MeeronBi keeps that same information in one connected record per
             patient, entered once by hospital staff, visible to the patient it belongs to, and
             available in aggregate — never individually — to guide research and policy, including
-            reducing unnecessary caesarean sections through the WHO's Robson classification
+            reducing unnecessary caesarean sections through the WHO&apos;s Robson classification
             framework.
           </p>
         </div>
@@ -147,7 +147,7 @@ export default function HomePage() {
 
       {/* Who it's for */}
       <section className="mx-auto max-w-5xl px-6 py-16">
-        <p className="text-sm font-medium text-brand-600">Who it's for</p>
+        <p className="text-sm font-medium text-brand-600">Who it&apos;s for</p>
         <h2 className="mt-2 font-display text-2xl italic text-ink sm:text-3xl">
           Three views of the same record.
         </h2>

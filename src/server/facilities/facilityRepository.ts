@@ -1,4 +1,5 @@
 import { prisma } from "@/server/db/prisma";
+import { NotFoundError } from "@/server/http/errors";
 
 /**
  * Resolves "the" facility for contexts that have no session to read a
@@ -18,5 +19,28 @@ import { prisma } from "@/server/db/prisma";
 export async function getDefaultFacility() {
   const bySlug = await prisma.facility.findUnique({ where: { slug: "default" } });
   if (bySlug) return bySlug;
-  return prisma.facility.findFirst({ orderBy: { createdAt: "asc" } });
+  // Excludes "hq" explicitly — it's the administrative home for
+  // SUPER_ADMIN/RESEARCHER accounts (see getHqFacility below), never a
+  // real hospital with patient data, so it must never become "the"
+  // facility public trends silently falls back to showing.
+  return prisma.facility.findFirst({ where: { slug: { not: "hq" } }, orderBy: { createdAt: "asc" } });
+}
+
+/**
+ * The administrative "home" facility for SUPER_ADMIN and RESEARCHER
+ * accounts, neither of which is conceptually tied to one hospital's data
+ * — see prisma/schema.prisma's User.facilityId comment for why they still
+ * need *a* facilityId (kept required for everyone, rather than making the
+ * column nullable) even though it isn't used to scope their access the
+ * way it does for ADMIN/PATIENT. Seeded once, in prisma/seed.ts; throws
+ * rather than silently falling back to some other facility if it's
+ * missing, since silently anchoring a researcher to the wrong hospital's
+ * facility would be a real, not cosmetic, mistake.
+ */
+export async function getHqFacility() {
+  const facility = await prisma.facility.findUnique({ where: { slug: "hq" } });
+  if (!facility) {
+    throw new NotFoundError("The HQ facility hasn't been seeded yet — run `npm run seed`.");
+  }
+  return facility;
 }

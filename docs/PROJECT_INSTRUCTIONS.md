@@ -6,6 +6,32 @@ not just when explicitly asked. When they conflict with speed/convenience,
 these win; when a decision isn't covered here, check `docs/SCALING_PLAN.md`'s
 phased roadmap before inventing a new pattern.
 
+## North Star
+
+The core goal of this project is a **strong, scalable foundation** —
+reliable, fault-tolerant, a great experience to use, and easy for a future
+collaborator (including a future instance of Claude with no memory of this
+conversation) to pick up and extend correctly on the first try. Shipping an
+MVP feature set is completely fine; shipping it on top of a weak foundation
+is not. Every decision below exists in service of that, not as bureaucracy
+for its own sake.
+
+**Before calling a change done, ask:**
+1. Does it scope by `facilityId`? (Any new table/query touching patient or
+   user data that doesn't is a bug, not a shortcut.)
+2. Does it fail loudly and specifically, not silently or generically? (A
+   caught-and-swallowed error, or a bare `catch {}`, is a future 2am
+   debugging session for someone else.)
+3. Could a future contributor understand *why* this was built this way
+   from a comment or a doc, without having to ask the person who wrote it?
+4. If this fails partway (network drops, the DB is briefly unreachable,
+   the person double-clicks), does it degrade gracefully — or corrupt
+   state, duplicate a write, or leave the UI stuck?
+5. Am I building for the scale this actually needs now (one facility,
+   modest data volume) while keeping the door open for where it's
+   explicitly headed (many facilities, states, countries) — not gold-plating
+   for a scale that isn't real yet, and not painting into a corner either?
+
 ## Context
 
 Next.js 14 + MySQL/Prisma + NextAuth antenatal-care data platform. Currently
@@ -15,7 +41,7 @@ should assume that trajectory without over-building for it today — see
 "design for 10x, build for 10x, don't implement for 1000x" in
 `docs/SCALING_PLAN.md`.
 
-## 1. Error handling
+## 1. Error handling and reliability
 
 - Never throw a bare `Error("string")` from server code. Use/extend the
   typed hierarchy in `server/http/errors.ts` so callers can branch on
@@ -30,6 +56,17 @@ should assume that trajectory without over-building for it today — see
   `friendlyErrorMessage`, not a raw `fetch().catch()` with a generic string.
 - New domain logic that a caller genuinely needs to branch on should prefer
   a typed result over throwing.
+- **Fault tolerance, not just error typing**: a dropped connection, a slow
+  database, or a person double-clicking Save should never corrupt data or
+  produce two records where one was intended. Prefer idempotent writes,
+  keep the existing "disable the button the instant it's clicked" pattern
+  non-negotiable for anything that mutates data, and don't assume a
+  network call succeeds just because it was sent — every write path needs
+  a real answer to "what happens if this fails halfway."
+- Never silently swallow an error (an empty `catch {}` or a `.catch(() =>
+  {})` with no comment explaining why it's genuinely safe to ignore) —
+  either handle it, surface it, or log it with a one-line reason it's safe
+  to ignore right there in the code.
 
 ## 2. User experience
 
@@ -71,6 +108,12 @@ should assume that trajectory without over-building for it today — see
 - Any new public/unauthenticated endpoint needs an explicit privacy
   justification in a code comment — default to requiring auth, don't add
   an exception without one.
+- Before hardcoding any reference list (a country's regions, a set of
+  categories), check whether it's genuinely small and stable (safe to
+  hardcode, like Manipur's 16 districts or India's 28 states) or large
+  and/or frequently changing (needs a real, sourced, maintainable dataset
+  — never hand-typed from memory). See the district-scaling discussion for
+  the reasoning.
 
 ## 4. Scale and maintainability
 
@@ -98,3 +141,10 @@ should assume that trajectory without over-building for it today — see
 - When a change touches the schema, call out explicitly that
   `npx prisma generate` (+ a migration) needs to run against a real
   database — that can't happen in this environment.
+- New pure logic in `domain/` gets a colocated `*.test.ts` (`npm test`
+  runs the suite — see `docs/TESTING.md` for scope and philosophy). Not
+  every change needs a new test, but a new branch of real logic in
+  `domain/` — a new field-sanitization rule, a new classification case —
+  usually does. CI (`.github/workflows/ci.yml`) runs lint + a full
+  typecheck + this suite on every push/PR — a red run blocks merging that
+  branch's problems into `main`, not something to work around.

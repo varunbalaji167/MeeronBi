@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import SignOutButton from "./SignOutButton";
-import { Menu, X, Users, BarChart3, FileHeart, type LucideIcon } from "lucide-react";
+import { Menu, X, Users, BarChart3, FileHeart, ShieldCheck, LineChart, type LucideIcon } from "lucide-react";
 
 interface NavItem {
   href: string;
@@ -14,7 +14,7 @@ interface NavItem {
   exact?: boolean;
 }
 
-type SidebarRole = "admin" | "patient";
+type SidebarRole = "admin" | "patient" | "researcher";
 
 // Icon components can't be passed as props from a Server Component into a
 // Client Component (they're functions under the hood, and the RSC
@@ -37,7 +37,20 @@ const NAV_CONFIG: Record<SidebarRole, { roleLabel: string; items: NavItem[] }> =
       { href: "/public/trends", label: "Public Trends", icon: BarChart3 },
     ],
   },
+  researcher: {
+    roleLabel: "Researcher",
+    items: [
+      { href: "/researcher", label: "Analytics", icon: LineChart, exact: true },
+      { href: "/public/trends", label: "Public Trends", icon: BarChart3 },
+    ],
+  },
 };
+
+// SUPER_ADMIN-only — reviewing researcher access requests isn't a
+// per-facility hospital-admin task, so it's added conditionally rather
+// than living in NAV_CONFIG.admin.items directly (which every ADMIN,
+// facility-scoped or not, would otherwise see).
+const SUPER_ADMIN_ITEM: NavItem = { href: "/admin/researchers", label: "Researcher Requests", icon: ShieldCheck };
 
 function initialsFor(email: string): string {
   const local = email.split("@")[0] ?? email;
@@ -48,9 +61,11 @@ function initialsFor(email: string): string {
 
 export default function AppSidebar({ role }: { role: SidebarRole }) {
   const pathname = usePathname();
-  const { user } = useAuth();
+  const { user, isSuperAdmin } = useAuth();
   const [open, setOpen] = useState(false);
-  const { roleLabel, items } = NAV_CONFIG[role];
+  const { roleLabel: baseRoleLabel, items: baseItems } = NAV_CONFIG[role];
+  const roleLabel = role === "admin" && isSuperAdmin ? "MeeronBi Team" : baseRoleLabel;
+  const items = role === "admin" && isSuperAdmin ? [...baseItems, SUPER_ADMIN_ITEM] : baseItems;
 
   // Close the mobile drawer automatically whenever the route changes.
   useEffect(() => {

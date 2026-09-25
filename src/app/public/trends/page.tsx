@@ -35,7 +35,14 @@ export default function PublicTrendsPage() {
   const [loading, setLoading] = useState(true);
   const { role, isLoading: authLoading } = useAuth();
 
-  const homeHref = role === "ADMIN" ? "/admin" : role === "PATIENT" ? "/patient" : "/";
+  const homeHref =
+    role === "ADMIN" || role === "SUPER_ADMIN"
+      ? "/admin"
+      : role === "PATIENT"
+        ? "/patient"
+        : role === "RESEARCHER"
+          ? "/researcher"
+          : "/";
   const homeLabel = authLoading ? "Home" : role ? "Dashboard" : "Home";
 
   useEffect(() => {

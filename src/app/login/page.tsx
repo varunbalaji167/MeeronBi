@@ -32,12 +32,23 @@ const copy = {
       "Aggregate trends stay anonymized — no patient-level exposure",
     ],
   },
+  researcher: {
+    eyebrow: "Research Access",
+    heading: "De-identified trends, for real research.",
+    body: "Sign in to explore aggregate, disclosure-controlled analytics — never an individual patient row — once your access request is approved.",
+    bullets: [
+      "Every result is aggregate and cell-size suppressed",
+      "Access is reviewed and approved by the MeeronBi team",
+      "No account yet? Request access below",
+    ],
+  },
 };
 
 function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
-  const roleHint = params.get("role") === "patient" ? "patient" : "admin";
+  const roleHintParam = params.get("role");
+  const roleHint = roleHintParam === "patient" ? "patient" : roleHintParam === "researcher" ? "researcher" : "admin";
   const { role, isAuthenticated } = useAuth();
   const { showToast } = useToast();
   const content = copy[roleHint];
@@ -54,7 +65,9 @@ function LoginForm() {
     // landing here already signed in, which redirects immediately without
     // this having been "an action that just happened."
     if (submitting) showToast("Signed in successfully.", "success");
-    router.replace(role === "ADMIN" ? "/admin" : role === "PATIENT" ? "/patient" : "/");
+    router.replace(
+      role === "ADMIN" || role === "SUPER_ADMIN" ? "/admin" : role === "PATIENT" ? "/patient" : role === "RESEARCHER" ? "/researcher" : "/"
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, role, router]);
 
@@ -67,7 +80,13 @@ function LoginForm() {
       const res = await signIn("credentials", { email, password, redirect: false });
       if (res?.error) {
         setSubmitting(false);
-        setError("That email and password don't match our records.");
+        // NextAuth collapses a bare `return null` from authorize() into the
+        // generic string "CredentialsSignin" — anything else is a message
+        // we deliberately threw ourselves (see authOptions.ts's authorize:
+        // a pending/rejected researcher gets a specific reason, not just
+        // "wrong password"), so show it as-is rather than overwriting it
+        // with the generic mismatch text.
+        setError(res.error === "CredentialsSignin" ? "That email and password don't match our records." : res.error);
         return;
       }
       // Leave `submitting` true — the effect above redirects once
@@ -128,7 +147,7 @@ function LoginForm() {
             ← MeeronBi
           </Link>
 
-          <div className="mt-4 flex gap-2 lg:mt-0">
+          <div className="mt-4 flex flex-wrap gap-2 lg:mt-0">
             <Link
               href="/login?role=patient"
               className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
@@ -145,15 +164,25 @@ function LoginForm() {
             >
               Hospital staff
             </Link>
+            <Link
+              href="/login?role=researcher"
+              className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                roleHint === "researcher" ? "bg-brand-50 text-brand-700" : "text-ink-faint hover:text-ink-soft"
+              }`}
+            >
+              Researcher
+            </Link>
           </div>
 
           <h1 className="mt-4 font-display text-3xl italic text-ink">
-            {roleHint === "patient" ? "Patient sign in" : "Hospital staff sign in"}
+            {roleHint === "patient" ? "Patient sign in" : roleHint === "researcher" ? "Researcher sign in" : "Hospital staff sign in"}
           </h1>
           <p className="mt-2 text-sm text-ink-soft">
             {roleHint === "patient"
               ? "View your antenatal care record."
-              : "Enter antenatal care data for your patients."}
+              : roleHint === "researcher"
+                ? "Access de-identified analytics once your request is approved."
+                : "Enter antenatal care data for your patients."}
           </p>
 
           <form onSubmit={handleSubmit} className="mt-8 flex flex-col gap-4">
@@ -194,9 +223,19 @@ function LoginForm() {
           </form>
 
           <p className="mt-6 text-xs text-ink-faint">
-            {roleHint === "patient"
-              ? "Don't have a login yet? Ask your hospital's care team to set one up for you."
-              : "Need an account? Contact your MeeronBi administrator."}
+            {roleHint === "patient" ? (
+              "Don't have a login yet? Ask your hospital's care team to set one up for you."
+            ) : roleHint === "researcher" ? (
+              <>
+                Don&apos;t have a login yet?{" "}
+                <Link href="/researcher-access" className="font-medium text-brand-600 hover:underline">
+                  Request researcher access
+                </Link>
+                .
+              </>
+            ) : (
+              "Need an account? Contact your MeeronBi administrator."
+            )}
           </p>
         </div>
       </div>

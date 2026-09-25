@@ -41,8 +41,16 @@ datasource db {
 }
 
 enum Role {
-  ADMIN // hospital staff / dev team — full data entry access
+  SUPER_ADMIN // MeeronBi dev/ops team — full access across every facility, no facility-scoping applies
+  ADMIN // hospital staff — full data entry access, scoped to their own facility
   PATIENT // can view only their own record, read-only
+  RESEARCHER // approved external researcher — analytics-only access once APPROVED (see ResearcherProfile); never reaches per-patient tab-record endpoints, guarded by a separate code path (see server/auth/guards.ts's requireResearcherSession)
+}
+
+enum ResearcherStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 enum RecordStatus {
@@ -89,6 +97,15 @@ model User {
   createdAt    DateTime  @default(now())
   lastLoginAt  DateTime?
 
+  // Required for every role, including SUPER_ADMIN/RESEARCHER, who aren't
+  // conceptually tied to one hospital's data — this was a deliberate
+  // decision (see docs/SCALING_PLAN.md's role-model discussion) to avoid
+  // making `facilityId` nullable and touching every place that reads it as
+  // a plain string. SUPER_ADMIN/RESEARCHER are anchored to a seeded "HQ"
+  // facility (see prisma/seed.ts) purely as an administrative home; the
+  // access-control guards for those two roles (server/auth/guards.ts)
+  // bypass the facility-match check entirely rather than relying on this
+  // value for scoping the way ADMIN/PATIENT's guards do.
   facilityId String
   facility   Facility @relation(fields: [facilityId], references: [id])
 
@@ -98,8 +115,46 @@ model User {
   // Patients this user (as staff) has created.
   createdPatients Patient[] @relation("CreatedBy")
 
+  // If role === RESEARCHER, this carries their approval status/request
+  // details — see ResearcherProfile below.
+  researcherProfile ResearcherProfile?
+
+  // Researcher requests this user (as a SUPER_ADMIN) has approved/rejected.
+  reviewedResearchers ResearcherProfile[] @relation("ReviewedBy")
+
   @@index([facilityId])
   @@map("users")
+}
+
+// One per RESEARCHER-role User — the request-and-approval record a real
+// in-app "request researcher access" flow needs (see
+// server/researchers/researcherAccessService.ts). The User row itself is
+// created immediately on request (role: RESEARCHER, this profile's status:
+// PENDING) rather than only after approval, because they need to set a
+// password and have *something* to check status against when they try to
+// log in before being approved — see authOptions.ts's authorize(), which
+// blocks login (with a specific, non-generic message) for anything other
+// than APPROVED.
+model ResearcherProfile {
+  userId String @id
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  status ResearcherStatus @default(PENDING)
+  // Why they want access — shown to the SUPER_ADMIN reviewing the request.
+  // Deliberately free text with a generous cap (this is a one-time
+  // request read by a human reviewer, not analytics-eligible structured
+  // data — none of the input-hardening/select-vs-text reasoning elsewhere
+  // in this app applies here).
+  institution String
+  purpose     String @db.Text
+
+  requestedAt DateTime  @default(now())
+  reviewedAt  DateTime?
+  reviewedBy   User?   @relation("ReviewedBy", fields: [reviewedById], references: [id])
+  reviewedById String?
+  reviewNote   String? @db.Text
+
+  @@map("researcher_profiles")
 }
 
 model Patient {

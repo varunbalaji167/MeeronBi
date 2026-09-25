@@ -12,14 +12,19 @@ just setup + a feature tour.
 
 | Role | Login required | Access |
 |---|---|---|
-| **Admin** (hospital staff) | Yes | Full create/read/update/delete on every patient record, all 7 tabs |
+| **Super Admin** (MeeronBi team) | Yes | Everything, across every facility — no facility-scoping applies. Also reviews researcher access requests at `/admin/researchers`. |
+| **Admin** (hospital staff) | Yes | Full create/read/update/delete on every patient record, all 7 tabs — scoped to their own facility only |
 | **Patient** | Yes | Read-only view of *their own* record only |
+| **Researcher** | Yes, once approved | Analytics-only access (once built — see `docs/ANALYTICS_PLAN.md`), never per-patient records. Request access at `/researcher-access`; a Super Admin reviews it. |
 | **General public** | No | `/public/trends` — aggregate, anonymized statistics only. No individual patient data is ever exposed on this route. |
 
 Route protection is enforced in `src/middleware.ts` (redirects unauthenticated
-or wrong-role users away from `/admin/*` and `/patient/*`) **and** re-checked
-in every API route via `src/server/auth/guards.ts`, so the UI guard is not the
-only line of defense.
+or wrong-role users away from `/admin/*`, `/patient/*`, and `/researcher/*`)
+**and** re-checked in every API route via `src/server/auth/guards.ts`, so the
+UI guard is not the only line of defense. Multi-tenancy (`facilityId`) is the
+other half of that boundary — see `docs/SCALING_PLAN.md` §3 for the full
+reasoning, and `prisma/seed-second-facility.ts` for a script that lets you
+verify facility isolation actually works rather than just trusting it.
 
 ## Feature tour
 
@@ -86,7 +91,9 @@ Patients don't self-register; staff grant access per patient:
 2. **Configure environment** — copy `.env.example` to `.env` and fill in:
    - `DATABASE_URL` — your MySQL connection string
    - `NEXTAUTH_SECRET` — generate with `openssl rand -base64 32`
-   - `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` — first admin login
+   - `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` — first hospital-admin login
+   - `SEED_SUPER_ADMIN_EMAIL` / `SEED_SUPER_ADMIN_PASSWORD` — first Super
+     Admin login (every facility, plus reviewing researcher requests)
 
 3. **Create the database schema**
    ```bash
@@ -97,14 +104,29 @@ Patients don't self-register; staff grant access per patient:
    ```bash
    npm run seed
    ```
-   This creates the first admin login, **and** one fully-filled-out demo
-   patient ("Meikam Tombi Meitei", MRD `DEMO-0001`) with all 7 tabs marked
-   **Complete** — realistic personal info, obstetric history, labs, scans, a
-   completed delivery, a Robson Group 3 classification, and six visits' worth
-   of measurements plus a medication course — so you can see what a finished
-   record looks like immediately. It also creates a patient-portal login for
-   her (`SEED_DEMO_PATIENT_EMAIL` / `SEED_DEMO_PATIENT_PASSWORD` in `.env`).
-   The seed is idempotent — re-running it skips anything that already exists.
+   This is idempotent — re-running it skips anything that already exists.
+   It creates, all at once:
+
+   | Account | Role | Login | Password |
+   |---|---|---|---|
+   | MeeronBi Team | Super Admin | `SEED_SUPER_ADMIN_EMAIL` | `SEED_SUPER_ADMIN_PASSWORD` |
+   | System Admin | Admin (default facility) | `SEED_ADMIN_EMAIL` | `SEED_ADMIN_PASSWORD` |
+   | Meikam Tombi Meitei | Patient (portal) | `SEED_DEMO_PATIENT_EMAIL` | `SEED_DEMO_PATIENT_PASSWORD` |
+   | Dr. Priya Menon | Researcher — **pending** | `priya.pending@example.org` | `ResearcherDemo123!` |
+   | Dr. Arjun Iyer | Researcher — **approved** | `arjun.approved@example.org` | `ResearcherDemo123!` |
+   | R. Fernandes | Researcher — **rejected** | `rejected.request@example.org` | `ResearcherDemo123!` |
+
+   Plus two patient records in the default facility: **Meikam Tombi Meitei**
+   (MRD `DEMO-0001`) with all 7 tabs marked **Complete** — realistic personal
+   info, obstetric history, labs, scans, a completed delivery, a Robson
+   Group 3 classification, and six visits' worth of measurements plus a
+   medication course — and **Rajkumari Ibemhal Devi** (MRD `DEMO-0002`), a
+   **Draft** record with only the Personal tab started, so the incomplete/
+   draft states aren't something you have to create by hand either.
+
+   To actually verify facility isolation (not just trust it), run
+   `npx tsx prisma/seed-second-facility.ts` separately — see that file's own
+   comment for the manual QA steps it sets up.
 
 5. **Run the app**
    ```bash
@@ -112,10 +134,27 @@ Patients don't self-register; staff grant access per patient:
    ```
    - `http://localhost:3000` — public landing page
    - `http://localhost:3000/public/trends` — public trends (no login)
-   - `http://localhost:3000/login?role=admin` — staff login (seeded admin) →
-     open the demo patient from the Patients list to see a complete record
+   - `http://localhost:3000/login?role=admin` — staff login (seeded admin, or
+     the Super Admin account) → open a patient from the Patients list
    - `http://localhost:3000/login?role=patient` — patient login (seeded demo
      patient credentials, or create a new one from the admin UI)
+   - `http://localhost:3000/login?role=researcher` — researcher login; try
+     the pending and rejected accounts above to see their specific sign-in
+     messages, and the approved one to reach `/researcher`
+   - `http://localhost:3000/researcher-access` — submit a new researcher
+     request yourself, then approve/reject it signed in as the Super Admin
+     at `http://localhost:3000/admin/researchers`
+
+## Running the tests
+
+```bash
+npm test          # single run
+npm run test:watch  # re-runs on file change
+```
+
+Domain-layer unit tests only (pure logic — no database needed) — see
+[`docs/TESTING.md`](docs/TESTING.md) for exactly what's covered, what's
+deliberately not, and why.
 
 ## Extending the app
 

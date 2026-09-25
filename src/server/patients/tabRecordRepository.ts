@@ -27,8 +27,15 @@ export function isKnownTabKey(tabKey: string): boolean {
 function getDelegate(tabKey: string) {
   const modelKey = TAB_MODEL_MAP[tabKey];
   if (!modelKey) return null;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (prisma as any)[modelKey];
+  
+  // Cast prisma safely without triggering missing rule errors
+  const client = prisma as unknown as Record<string, {
+    findUnique: (args: unknown) => Promise<any>;
+    upsert: (args: unknown) => Promise<any>;
+    deleteMany: (args: unknown) => Promise<any>;
+  }>;
+
+  return client[modelKey as string] ?? null;
 }
 
 /**

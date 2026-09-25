@@ -6,10 +6,17 @@ export default withAuth(
     const { pathname } = req.nextUrl;
     const role = req.nextauth.token?.role;
 
-    if (pathname.startsWith("/admin") && role !== "ADMIN") {
+    // SUPER_ADMIN is a strict superset of ADMIN — reuses the same hospital
+    // staff UI, so it belongs on the ADMIN branch here too (the actual
+    // per-facility scoping/bypass logic lives server-side in
+    // server/auth/guards.ts, not in this redirect check).
+    if (pathname.startsWith("/admin") && role !== "ADMIN" && role !== "SUPER_ADMIN") {
       return NextResponse.redirect(new URL("/login", req.url));
     }
     if (pathname.startsWith("/patient") && role !== "PATIENT") {
+      return NextResponse.redirect(new URL("/login", req.url));
+    }
+    if (pathname.startsWith("/researcher") && role !== "RESEARCHER") {
       return NextResponse.redirect(new URL("/login", req.url));
     }
     return NextResponse.next();
@@ -24,9 +31,10 @@ export default withAuth(
   }
 );
 
-// Public routes (/, /public/*, /login, /api/public/*, /api/auth/*) are
-// intentionally excluded — this is what makes the trends page accessible
-// with no login for "general users" per the product requirements.
+// Public routes (/, /public/*, /login, /researcher-access/*, /api/public/*,
+// /api/researcher-access/*, /api/auth/*) are intentionally excluded — this
+// is what makes the trends page and the researcher-access request form
+// reachable with no login, same as /login itself.
 export const config = {
-  matcher: ["/admin/:path*", "/patient/:path*"],
+  matcher: ["/admin/:path*", "/patient/:path*", "/researcher/:path*"],
 };

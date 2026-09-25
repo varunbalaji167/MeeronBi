@@ -128,7 +128,7 @@ export default function AdminDashboard() {
       {error && <ErrorBanner>{error}</ErrorBanner>}
 
       <p className="text-xs text-ink-faint">
-        Click a patient's name to open their record. Click any status pill to jump straight to
+        Click a patient&apos;s name to open their record. Click any status pill to jump straight to
         that tab — drafts stay editable, so you can pick up right where you left off.
       </p>
 

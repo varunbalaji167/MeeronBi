@@ -53,7 +53,7 @@ export default function FieldCustomizer({ tab, titleId, enabledFieldNames, field
           <p className="mt-1 text-xs text-ink-faint">
             Choose which of the {totalCustomizable} optional fields below your hospital wants to collect.
             Unchecking a field hides it from this form — including fields that already have data (that
-            data isn't deleted, and still shows in the patient's own record).
+            data isn&apos;t deleted, and still shows in the patient&apos;s own record).
           </p>
         </div>
         <button type="button" onClick={onClose} className="text-ink-faint hover:text-ink" aria-label="Close">

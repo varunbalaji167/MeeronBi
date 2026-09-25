@@ -54,7 +54,7 @@ export default function PatientPortalAccess({
       </p>
       <form onSubmit={handleCreate} className="mt-3 flex flex-wrap items-end gap-3">
         <div>
-          <label className="label-text">Patient's Email</label>
+          <label className="label-text">Patient&apos;s Email</label>
           <div className="relative">
             <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" />
             <input

@@ -113,6 +113,14 @@ export interface CategoricalBreakdown {
   value: string;
   count: number;
   percent: number;
+  /**
+   * True when this entry represents multiple small buckets merged
+   * together by minimum-cell-size disclosure control (see
+   * domain/analytics/disclosureControl.ts) rather than one real category —
+   * lets the UI render it distinctly ("Other (suppressed)") instead of
+   * implying it's a normal data value.
+   */
+  suppressed?: boolean;
 }
 
 /** A Ratio field's values, bucketed into brackets (Standard Segment or generic histogram) — the fallback described in ANALYTICS_PLAN.md §6. */
@@ -120,10 +128,19 @@ export interface SegmentedBreakdown extends CategoricalBreakdown {
   bracket: SegmentBracket;
 }
 
+/**
+ * Deliberately does NOT carry a `patientId` (or any other per-patient
+ * identifier) — a chart only ever needs (x, y) pairs to plot dots, and
+ * attaching an id here would be a pure liability with no rendering
+ * purpose: it's exactly the kind of per-patient handle disclosure control
+ * exists to keep out of an aggregate response. If a future feature
+ * genuinely needs "click a dot to open that patient," that needs its own
+ * explicit, separately-authorized endpoint — not a passthrough id on every
+ * scatter response by default.
+ */
 export interface ScatterPoint {
   x: number;
   y: number;
-  patientId: string;
 }
 
 /** One cell of a Categorical x Categorical (or Categorical x bucketed-Ratio) cross-tab. */
@@ -132,6 +149,8 @@ export interface CrossTabCell {
   value: string;
   count: number;
   percent: number;
+  /** See CategoricalBreakdown.suppressed — same idea, for a cross-tab cell. */
+  suppressed?: boolean;
 }
 
 export interface TimeSeriesPoint {

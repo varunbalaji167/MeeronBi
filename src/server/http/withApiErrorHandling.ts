@@ -10,9 +10,10 @@ import { AppError } from "./errors";
  *
  * Two cases, handled differently:
  *  - A known `AppError` (see server/http/errors.ts) — its own statusCode,
- *    code, message, and any fieldErrors are passed straight through. This
- *    is the expected, "this specific thing went wrong" path: a guard
- *    denying access, a validation failure, a conflict with existing data.
+ *    code, message, detail, and any fieldErrors are passed straight
+ *    through. This is the expected, "this specific thing went wrong" path:
+ *    a guard denying access, a validation failure, a conflict with
+ *    existing data.
  *  - Anything else (a genuine bug, a DB connection failure, a missing
  *    migration) — logged server-side with the real stack trace, but the
  *    client only ever sees a generic message. Never leak internals.
@@ -31,7 +32,7 @@ export function withApiErrorHandling<Args extends any[]>(
     } catch (err) {
       if (err instanceof AppError) {
         return NextResponse.json(
-          { error: err.message, code: err.code, fieldErrors: err.fieldErrors },
+          { error: err.message, code: err.code, detail: err.detail, fieldErrors: err.fieldErrors },
           { status: err.statusCode }
         );
       }

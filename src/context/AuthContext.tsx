@@ -3,7 +3,8 @@
 import { createContext, useContext, useMemo } from "react";
 import { useSession } from "next-auth/react";
 
-export type Role = "ADMIN" | "PATIENT";
+export type Role = "SUPER_ADMIN" | "ADMIN" | "PATIENT" | "RESEARCHER";
+export type ResearcherStatus = "PENDING" | "APPROVED" | "REJECTED";
 
 interface AuthUser {
   id: string;
@@ -15,21 +16,29 @@ interface AuthContextValue {
   user: AuthUser | null;
   role: Role | null;
   patientId: string | null;
+  /** Only meaningful when role === "RESEARCHER" — display convenience only, never trust for access control (see server/auth/guards.ts's requireResearcherSession, which always re-checks fresh). */
+  researcherStatus: ResearcherStatus | null;
   /** True while NextAuth is still resolving the session from the cookie. */
   isLoading: boolean;
   isAuthenticated: boolean;
   isAdmin: boolean;
+  /** SUPER_ADMIN is a strict superset of ADMIN — this is true for both, matching how server/auth/guards.ts's requireAdminSession treats them. Use isSuperAdmin to distinguish SUPER_ADMIN-only UI (like the researcher-requests review page). */
+  isSuperAdmin: boolean;
   isPatient: boolean;
+  isResearcher: boolean;
 }
 
 const AuthContext = createContext<AuthContextValue>({
   user: null,
   role: null,
   patientId: null,
+  researcherStatus: null,
   isLoading: true,
   isAuthenticated: false,
   isAdmin: false,
+  isSuperAdmin: false,
   isPatient: false,
+  isResearcher: false,
 });
 
 /**
@@ -53,10 +62,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user: sessionUser ? { id: sessionUser.id, email: sessionUser.email, name: sessionUser.name } : null,
       role: sessionUser?.role ?? null,
       patientId: sessionUser?.patientId ?? null,
+      researcherStatus: sessionUser?.researcherStatus ?? null,
       isLoading: status === "loading",
       isAuthenticated: status === "authenticated",
-      isAdmin: sessionUser?.role === "ADMIN",
+      isAdmin: sessionUser?.role === "ADMIN" || sessionUser?.role === "SUPER_ADMIN",
+      isSuperAdmin: sessionUser?.role === "SUPER_ADMIN",
       isPatient: sessionUser?.role === "PATIENT",
+      isResearcher: sessionUser?.role === "RESEARCHER",
     };
   }, [session, status]);
 

@@ -14,6 +14,16 @@ advice. Nothing here is wired in yet.
 > types (and the actual migration SQL) can't be produced without one. Until
 > that's run, anything importing `@prisma/client` won't compile.
 
+**North Star** (stated explicitly, so it doesn't just live in chat
+history): the goal of this project is a strong, scalable foundation —
+reliable, fault-tolerant, a genuinely good experience to use, and easy for
+a future collaborator to extend correctly without having to ask why
+something was built a certain way. MVP scope is fine; a weak foundation
+under it is not. `docs/PROJECT_INSTRUCTIONS.md` is the distilled,
+paste-into-custom-instructions version of that principle plus the four
+pillars below — this file is where the full reasoning behind each line of
+that digest lives.
+
 ## Status as of this writing
 
 Grounded, not aspirational — every ✅ below is a specific file, not a
@@ -25,7 +35,8 @@ vibe. ❌ items are genuinely not started.
 not yours" for cross-facility access. ❌ still flat 6-code enum (not
 namespaced), no `Result<T,E>` pattern anywhere yet, no request/correlation
 IDs, no error-tracking integration, no React error boundaries, no
-retry-with-backoff.
+retry-with-backoff, no idempotency keys on writes, no defined backup/DR
+policy, no health-check endpoint.
 
 **2. UX** — ✅ shape-matched skeletons, button loading/disabled states,
 error-code-aware toasts, live-computed panels (Robson, delivery timing,
@@ -48,7 +59,9 @@ unconfirmed, `zod` unused at the API boundary.
 i18n/regionalization backbone; ✅ field-visibility system already the right
 shape for per-region field differences; ✅ strong documentation culture
 (`ARCHITECTURE.md`, `ANALYTICS_PLAN.md`, `INPUT_HARDENING_PLAN.md`, this
-file). ❌ zero automated tests, no CI pipeline, no API versioning
+file); ✅ `domain/` unit test suite (`docs/TESTING.md`) + a GitHub Actions
+CI gate (`.github/workflows/ci.yml`) running lint + a full-project
+typecheck + the test suite on every push/PR. ❌ no API versioning
 convention, no ADR log yet.
 
 **Suggested addition to the plan**: a `RESEARCHER` role, folded into
@@ -57,6 +70,21 @@ the trends-page section below, which is really what prompted this. It's
 the concrete shape the "regional/national admin tiers" idea in §3 needed
 anyway; better to design the role hierarchy once, with a real third role in
 mind, than to bolt one on after the fact.
+
+> **Update:** this is now implemented — `prisma/schema.prisma`'s `Role`
+> enum is `SUPER_ADMIN | ADMIN | PATIENT | RESEARCHER`, with a
+> `ResearcherProfile` model backing a real in-app request → `PENDING` →
+> SUPER_ADMIN-reviewed → `APPROVED`/`REJECTED` flow (`/researcher-access`
+> to request, `/admin/researchers` to review). `requireResearcherSession()`
+> in `server/auth/guards.ts` re-checks approval status fresh from the
+> database on every call — never trusts the session cookie's cached
+> status — so a revoked researcher loses access immediately, not whenever
+> their 30-day JWT happens to expire. No Analytics routes exist yet; this
+> guard (and `domain/analytics/disclosureControl.ts`,
+> `domain/result.ts`, and the namespaced error-code convention in
+> `server/http/errors.ts`) were all built as foundation *before* any
+> aggregation function, specifically so Analytics gets written against a
+> correct shape from its first line of code rather than retrofitted later.
 
 **Nothing recommended for removal** — everything on the original plan still
 holds up; the trends-page analysis below sharpens §3's existing (and,
@@ -133,6 +161,41 @@ shape — the gaps are about depth and observability, not the core pattern.
   distinguished — good. Add automatic retry-with-backoff for idempotent
   GETs (loading a tab record), since low-connectivity settings become more
   likely, not less, as this reaches more places geographically.
+
+**Fault tolerance specifically** (related to error typing but a distinct
+concern — a well-typed error that still corrupts data on a retry hasn't
+actually solved reliability):
+
+- **No idempotency guarantee on writes yet.** A double-click on "Save as
+  Draft", or a client retrying a request it wrongly believes failed
+  (timeout, but the write actually landed), can't currently be
+  distinguished from a genuine second save. The button-disable-on-click
+  pattern already in `DynamicForm` covers the common UI case; the gap is
+  server-side — a request replayed by a flaky network has no way to say
+  "this is the same attempt as before." Worth an idempotency-key header on
+  write routes once retry-with-backoff (above) is added — otherwise retry
+  logic and duplicate-write risk trade off against each other instead of
+  both being solved.
+- **No defined backup/disaster-recovery story.** Nothing in this plan or
+  the codebase says how often the database is backed up, how long backups
+  are retained, or what an actual restore looks like. For health records
+  specifically, this isn't optional — it needs an explicit answer (even a
+  simple one, like "managed MySQL provider's automated daily backups,
+  30-day retention, tested restore quarterly") before real patient data
+  exists, not after an incident.
+- **No health/readiness check.** A load balancer or uptime monitor has
+  nothing to poll today to know "is this instance actually able to serve
+  requests" (vs. just "is the process running") — a `/api/health` route
+  that confirms a real DB round-trip, not just a 200, is cheap and becomes
+  necessary the moment there's more than one server instance or an
+  automated deploy pipeline.
+- **Graceful degradation isn't designed for yet.** If the database is
+  briefly unreachable, does the app show a clear "try again in a moment"
+  state, or does it throw a raw 500 with no useful message? `withApiErrorHandling`
+  already catches the unexpected-error case into a clean JSON shape (see
+  above), which is most of the way there — worth explicitly testing what
+  the UI actually shows a person in that moment, not just confirming the
+  API response is well-formed.
 
 ---
 
@@ -242,11 +305,23 @@ for multi-tenant, multi-region, regulated-health-data operation.
   brute-forcing is trivial today. Add at the edge (middleware, or a
   Redis-backed limiter once there's more than one server instance) before
   this is internet-facing at any real scale.
-- **No security headers.** `next.config.mjs` sets nothing beyond a
-  permissive `experimental.serverActions.allowedOrigins: ["*"]` — fine for
-  a single dev origin, a real gap once there's a production domain. Add
-  the standard set (CSP, X-Frame-Options, Referrer-Policy, HSTS) and
-  narrow `allowedOrigins` to the actual deployed domain(s).
+- **No security headers.** `next.config.mjs` still sets nothing beyond
+  `serverActions.allowedOrigins` — still a real gap once there's a
+  production domain. Add the standard set (CSP, X-Frame-Options,
+  Referrer-Policy, HSTS).
+
+  > **Update:** `allowedOrigins` itself is no longer a wildcard — narrowed
+  > to `NEXT_PUBLIC_APP_ORIGIN` (falling back to `localhost:3000`
+  > locally), and `next` bumped from `14.2.5` to the patched `14.2.35`.
+  > Both were prompted by the same discovery: the Dec 2025 Next.js
+  > security advisory (CVE-2025-55183, a Server-Actions source/function
+  > leak) specifically applies to apps that have opted into
+  > `experimental.serverActions` — which this app has — and a wildcard
+  > origin widened that CVE's exploitable surface for no real benefit.
+  > The critical RCE in the same advisory batch (CVE-2025-55182,
+  > CVSS 10.0) does NOT apply here — it's scoped to Next.js 14 canary
+  > builds and 15/16, and this app is on a stable 14.x release. Set the
+  > real env var before ever deploying this anywhere public.
 - **PII/PHI at rest** (phone, DOB, address, MRD) is plain JSON today.
   Worth evaluating field-level encryption, or at minimum explicitly
   confirming the hosting database's encryption-at-rest setting rather than
@@ -409,12 +484,16 @@ page conflates. Concretely, in order of severity:
 facility-aware guards, and every repository under `server/patients/`,
 `server/trends/`, `server/facilities/`) · namespaced error codes ·
 `zod` at the API boundary · security headers · `AuditLog` table ·
-`domain/` unit test suite + CI gate.
+✅ `domain/` unit test suite + CI gate (done — `docs/TESTING.md`,
+`.github/workflows/ci.yml`) · a documented backup/restore policy
+(even a simple one) · a real `/api/health` check.
 
 **Phase 1 — as a second facility/state becomes concrete:**
 RBAC role+scope model · i18n scaffolding (English-only content, through
 the catalog) · soft-delete · optimistic concurrency · rate limiting ·
-error-tracking/observability integration · locale/timezone abstraction.
+error-tracking/observability integration · locale/timezone abstraction ·
+retry-with-backoff + idempotency keys on write routes (the two go
+together — retrying safely requires both).
 
 **Phase 2 — as multi-region/multi-country rollout becomes real:**
 Field registry scoped per facility/region · offline-first data entry ·

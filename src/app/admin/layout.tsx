@@ -11,7 +11,9 @@ export const dynamic = "force-dynamic";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
-  if (!session?.user || session.user.role !== "ADMIN") redirect("/login?role=admin");
+  if (!session?.user || (session.user.role !== "ADMIN" && session.user.role !== "SUPER_ADMIN")) {
+    redirect("/login?role=admin");
+  }
 
   return (
     // `lg:h-screen lg:overflow-hidden` pins the viewport height at desktop
