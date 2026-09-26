@@ -32,37 +32,70 @@ vibe. ❌ items are genuinely not started.
 **1. Error handling** — ✅ typed `AppError` hierarchy + `withApiErrorHandling`
 + client-side `ApiError`/`friendlyErrorMessage`; ✅ `NotFoundError` vs.
 `ForbiddenError` now correctly distinguishes "doesn't exist" from "exists,
-not yours" for cross-facility access. ❌ still flat 6-code enum (not
-namespaced), no `Result<T,E>` pattern anywhere yet, no request/correlation
-IDs, no error-tracking integration, no React error boundaries, no
-retry-with-backoff, no idempotency keys on writes, no defined backup/DR
-policy, no health-check endpoint.
+not yours" for cross-facility access; ✅ namespaced `detail:` codes applied
+across `guards.ts`, `server/patients/errors.ts`, `server/auth/errors.ts`,
+`server/analytics/errors.ts`; ✅ request/correlation IDs
+(`withApiErrorHandling` generates one per request, returned as
+`x-request-id` + JSON `requestId`, surfaced client-side as a toast
+`(ref: ab12cd)`); ✅ error-tracking integration (`@sentry/nextjs`, env-gated
+on `SENTRY_DSN`, true no-op when unset); ✅ React error boundaries
+(`RouteErrorBoundary` under every top-level route group plus
+`global-error.tsx`); ✅ `/api/health` (real DB round-trip, 503 on failure).
+🟡 backup/DR policy — decision criteria and shortlist documented in
+`docs/OPERATIONS.md`, but no provider chosen yet (`TODO: revisit once
+hosting is chosen`). ❌ no `Result<T,E>` pattern in server/API code (it
+exists in `domain/result.ts` and is used by the analytics foundation, not
+yet elsewhere), no retry-with-backoff, no idempotency keys on writes.
 
 **2. UX** — ✅ shape-matched skeletons, button loading/disabled states,
 error-code-aware toasts, live-computed panels (Robson, delivery timing,
-gestational-age badges), `allowOther` closed-input pattern. ❌ no i18n layer
-(still hardcoded English strings throughout `domain/tabs/*.ts`), no
-locale/timezone abstraction (still naive `new Date()`), no systematic
+gestational-age badges), `allowOther` closed-input pattern; ✅
+locale/timezone-formatting abstraction (`domain/locale.ts`, two locales:
+`en-IN`/`en-US`, backed by `Facility.locale`) — note this is
+date/measurement-unit *formatting* only, not full i18n. ❌ no i18n layer
+(still hardcoded English strings throughout `domain/tabs/*.ts` — stays
+behind the "second-language deployment concrete" trigger), no systematic
 accessibility pass, no offline resilience, no component-library governance.
 
 **3. Security & data correctness** — ✅ Facility/tenant model + scoped
-guards (just done — this was the biggest gap); ✅ comprehensive
-`sanitizeTabData` allowlist rebuild across all section kinds; ✅ the
-`requireAdminSessionForPatient` fix (closed a real pre-existing gap: any
-admin could previously write to any patient regardless of facility). ❌ no
-RBAC hierarchy beyond flat `ADMIN`/`PATIENT` (see the new `RESEARCHER` tier
-recommendation below), no audit log, no optimistic concurrency, no
-soft-delete, no rate limiting, no security headers, PII-at-rest encryption
-unconfirmed, `zod` unused at the API boundary.
+guards; ✅ comprehensive `sanitizeTabData` allowlist rebuild across all
+section kinds; ✅ the `requireAdminSessionForPatient` fix; ✅ `AuditLog`
+table + `writeAuditLog` helper, retrofitted onto every mutating
+repository/service (patient create/delete/sync, tab record save/delete,
+field preferences, portal access, researcher approve/reject); ✅ rate
+limiting (`server/http/rateLimit.ts`'s in-memory token bucket, applied to
+researcher-access requests, public trends, and credentials login) — Phase
+1 item pulled forward, non-negotiable before Analytics ships per the
+differencing-attack concern in §Trends below; ✅ security headers
+(`next.config.mjs`'s `headers()`, HSTS production-only, `poweredByHeader:
+false` — CSP-with-nonces still deliberately deferred, its own testing
+pass); ✅ `zod` at the API boundary (`server/http/parseJson.ts` — helper
+landed, not yet retrofitted onto every existing route's body validation).
+❌ no RBAC hierarchy beyond `SUPER_ADMIN`/`ADMIN`/`PATIENT`/`RESEARCHER`
+scoped further per-region (not yet needed — single state today), no
+optimistic concurrency, no soft-delete, PII-at-rest encryption unconfirmed
+(trigger: per-target-country compliance review).
 
 **4. Scale & maintainability** — ✅ Facility model doubles as the
 i18n/regionalization backbone; ✅ field-visibility system already the right
 shape for per-region field differences; ✅ strong documentation culture
 (`ARCHITECTURE.md`, `ANALYTICS_PLAN.md`, `INPUT_HARDENING_PLAN.md`, this
-file); ✅ `domain/` unit test suite (`docs/TESTING.md`) + a GitHub Actions
-CI gate (`.github/workflows/ci.yml`) running lint + a full-project
-typecheck + the test suite on every push/PR. ❌ no API versioning
-convention, no ADR log yet.
+file, `docs/NEXT_STEPS.md`, `docs/OPERATIONS.md`); ✅ `domain/` unit test
+suite (`docs/TESTING.md`) + a GitHub Actions CI gate
+(`.github/workflows/ci.yml`) running lint + a full-project typecheck + the
+test suite on every push/PR; ✅ ADR log started (`docs/adr/` — template
+plus two initial ADRs backfilling the Facility-as-tenant-boundary and
+audit-log-per-entity-change decisions). ❌ no API versioning convention.
+
+**A note on observability, since it spans several rows above**: every
+request now carries a correlation ID from `withApiErrorHandling` through
+to the structured logger (`server/http/logger.ts`) and, when configured,
+Sentry — "a save failed for someone, somewhere" is debuggable today in a
+way it wasn't when this plan was first written. The one known gap:
+`AuditLog.requestId` is currently always `null` (threading the
+per-request ID into service-layer calls needs either a handler-signature
+change or `AsyncLocalStorage`, deliberately deferred — see
+`docs/NEXT_STEPS.md`).
 
 **Suggested addition to the plan**: a `RESEARCHER` role, folded into
 Phase 1's RBAC work rather than treated as a separate later effort — see
@@ -478,28 +511,32 @@ page conflates. Concretely, in order of severity:
 
 ## Phased roadmap
 
-**Phase 0 — before the next feature, while it's still cheap:**
-✅ `Facility` model + scope every table through it (done — see
-`prisma/schema.prisma`'s `Facility` model, `server/auth/guards.ts`'s
-facility-aware guards, and every repository under `server/patients/`,
-`server/trends/`, `server/facilities/`) · namespaced error codes ·
-`zod` at the API boundary · security headers · `AuditLog` table ·
-✅ `domain/` unit test suite + CI gate (done — `docs/TESTING.md`,
-`.github/workflows/ci.yml`) · a documented backup/restore policy
-(even a simple one) · a real `/api/health` check.
+**Phase 0 — before the next feature, while it's still cheap:** ✅ done.
+✅ `Facility` model + scope every table through it · ✅ namespaced error
+codes · ✅ `zod` at the API boundary (helper landed; per-route retrofit
+ongoing) · ✅ security headers · ✅ `AuditLog` table · ✅ `domain/` unit
+test suite + CI gate · ✅ a real `/api/health` check · 🟡 documented
+backup/restore policy — criteria and shortlist done
+(`docs/OPERATIONS.md`), provider not yet chosen.
 
-**Phase 1 — as a second facility/state becomes concrete:**
-RBAC role+scope model · i18n scaffolding (English-only content, through
-the catalog) · soft-delete · optimistic concurrency · rate limiting ·
-error-tracking/observability integration · locale/timezone abstraction ·
+**Phase 1 — as a second facility/state becomes concrete:** three items
+pulled forward and landed ahead of schedule (rate limiting, locale/
+timezone abstraction, error-tracking/observability) because they were
+cheap now and either non-negotiable before Analytics ships (rate
+limiting — differencing-attack defense) or got more expensive the longer
+they waited (locale abstraction — cheap before more `new Date()` call
+sites exist). Remaining: RBAC role+scope model *scoped per-region* (the
+four-role model itself already exists), i18n scaffolding (English-only
+content, through the catalog), soft-delete, optimistic concurrency,
 retry-with-backoff + idempotency keys on write routes (the two go
 together — retrying safely requires both).
 
 **Phase 2 — as multi-region/multi-country rollout becomes real:**
 Field registry scoped per facility/region · offline-first data entry ·
 Analytics data-fetch strategy revisited if volume demands it ·
-per-target-jurisdiction compliance review · ADR log formalized (start this
-one early — it's cheap at any phase, just needs the habit to start).
+per-target-jurisdiction compliance review · ✅ ADR log started early
+(`docs/adr/`) rather than waiting for this phase, per this section's own
+advice that it's cheap at any phase.
 
 ## What's deliberately NOT here
 
