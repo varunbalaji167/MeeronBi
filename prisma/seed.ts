@@ -94,7 +94,7 @@ async function seedResearchers(hqFacilityId: string, superAdminId: string) {
       name: "Dr. Priya Menon",
       institution: "Regional Institute of Medical Sciences (RIMS), Imphal",
       purpose:
-        "Studying whether trimester-specific TSH reference ranges used in the Standard Segments (see docs/ANALYTICS_PLAN.md §6) hold up against this facility's own lab's historical values, or need local recalibration.",
+        "Studying whether the trimester-specific TSH reference ranges currently in use hold up against this facility's own lab's historical values, or need local recalibration.",
       status: "PENDING",
     },
     {

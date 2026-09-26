@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { suppressSmallCells, suppressSmallCrossTabCells, meetsMinimumSampleSize, MIN_CELL_SIZE } from "./disclosureControl";
-import { CategoricalBreakdown, CrossTabCell } from "./types";
+import { CategoricalBreakdown, CrossTabCell, SegmentedBreakdown } from "./types";
 
 describe("suppressSmallCells", () => {
   const entries: CategoricalBreakdown[] = [
@@ -45,6 +45,17 @@ describe("suppressSmallCells", () => {
   it("does not treat a real zero count as something to suppress", () => {
     const withZero: CategoricalBreakdown[] = [{ value: "Twins", count: 0, percent: 0 }];
     expect(suppressSmallCells(withZero, "public")).toEqual(withZero);
+  });
+
+  it("relabels a merged Ratio bucket's own bracket, not just its `value` — the chart's x-axis reads `bracket.label`", () => {
+    const buckets: SegmentedBreakdown[] = [
+      { value: "20-24 years", bracket: { label: "20-24 years", min: 20, max: 24 }, count: 2, percent: 33.3 },
+      { value: "25-29 years", bracket: { label: "25-29 years", min: 25, max: 29 }, count: 1, percent: 16.7 },
+      { value: "30-34 years", bracket: { label: "30-34 years", min: 30, max: 34 }, count: 3, percent: 50 },
+    ];
+    const result = suppressSmallCells(buckets, "public");
+    const suppressed = result.find((b) => b.suppressed);
+    expect(suppressed?.bracket).toEqual({ label: "Other (suppressed)" });
   });
 });
 

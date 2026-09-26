@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { allTabs } from "@/domain/tabs";
 import Spinner from "@/components/ui/Spinner";
 import ErrorBanner from "@/components/ui/ErrorBanner";
+import { useAuth } from "@/context/AuthContext";
 import { UserPlus, Search, X, ChevronLeft, ChevronRight, Clock, CheckCircle2, ArrowRight } from "lucide-react";
 
 interface PatientRow {
@@ -14,6 +15,7 @@ interface PatientRow {
   mrn: string | null;
   contactNo: string | null;
   updatedAt: string;
+  facility?: { name: string; slug: string } | null;
   personal?: { status: string } | null;
   history?: { status: string } | null;
   investigation?: { status: string } | null;
@@ -30,24 +32,34 @@ interface Pagination {
   totalPages: number;
 }
 
+interface Facility {
+  id: string;
+  name: string;
+  slug: string;
+}
+
 const PAGE_SIZE = 10;
 
 export default function AdminDashboard() {
   const router = useRouter();
+  const { isSuperAdmin } = useAuth();
   const [patients, setPatients] = useState<PatientRow[]>([]);
   const [pagination, setPagination] = useState<Pagination | null>(null);
   const [page, setPage] = useState(1);
   const [q, setQ] = useState("");
   const [appliedQ, setAppliedQ] = useState("");
+  const [facilities, setFacilities] = useState<Facility[]>([]);
+  const [facilityId, setFacilityId] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  async function load(targetPage: number, query: string) {
+  async function load(targetPage: number, query: string, facility: string) {
     setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams({ page: String(targetPage), pageSize: String(PAGE_SIZE) });
       if (query) params.set("q", query);
+      if (facility) params.set("facilityId", facility);
       const res = await fetch(`/api/patients?${params.toString()}`);
       const json = await res.json();
       if (!res.ok) {
@@ -66,9 +78,17 @@ export default function AdminDashboard() {
   }
 
   useEffect(() => {
-    load(page, appliedQ);
+    load(page, appliedQ, isSuperAdmin ? facilityId : "");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, appliedQ]);
+  }, [page, appliedQ, facilityId, isSuperAdmin]);
+
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+    fetch("/api/facilities")
+      .then((res) => res.json())
+      .then((json) => setFacilities(json.facilities ?? []))
+      .catch(() => {});
+  }, [isSuperAdmin]);
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -97,7 +117,7 @@ export default function AdminDashboard() {
         </Link>
       </div>
 
-      <form onSubmit={handleSearch} className="flex gap-2">
+      <form onSubmit={handleSearch} className="flex flex-wrap gap-2">
         <div className="relative max-w-xs flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" />
           <input
@@ -123,6 +143,23 @@ export default function AdminDashboard() {
             <X className="h-3.5 w-3.5" /> Clear
           </button>
         )}
+        {isSuperAdmin && (
+          <select
+            className="input-field max-w-[12rem]"
+            value={facilityId}
+            onChange={(e) => {
+              setFacilityId(e.target.value);
+              setPage(1);
+            }}
+          >
+            <option value="">All facilities</option>
+            {facilities.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.name}
+              </option>
+            ))}
+          </select>
+        )}
       </form>
 
       {error && <ErrorBanner>{error}</ErrorBanner>}
@@ -137,6 +174,7 @@ export default function AdminDashboard() {
           <thead>
             <tr className="border-b border-line bg-paper text-left text-ink-faint">
               <th className="px-4 py-3 font-medium">Name</th>
+              {isSuperAdmin && <th className="px-4 py-3 font-medium">Facility</th>}
               <th className="px-4 py-3 font-medium">MRD</th>
               <th className="px-4 py-3 font-medium">Contact</th>
               {allTabs.map((t) => (
@@ -151,7 +189,7 @@ export default function AdminDashboard() {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={allTabs.length + 5} className="px-4 py-10 text-center text-ink-faint">
+                <td colSpan={allTabs.length + 5 + (isSuperAdmin ? 1 : 0)} className="px-4 py-10 text-center text-ink-faint">
                   <span className="inline-flex items-center gap-2">
                     <Spinner className="h-4 w-4" /> Loading…
                   </span>
@@ -160,8 +198,14 @@ export default function AdminDashboard() {
             )}
             {!loading && !error && patients.length === 0 && (
               <tr>
-                <td colSpan={allTabs.length + 5} className="px-4 py-8 text-center text-ink-faint">
-                  {appliedQ ? `No patients match "${appliedQ}".` : "No patients yet."}
+                <td colSpan={allTabs.length + 5 + (isSuperAdmin ? 1 : 0)} className="px-4 py-8 text-center text-ink-faint">
+                  {appliedQ
+                    ? `No patients match "${appliedQ}".`
+                    : isSuperAdmin && facilityId
+                      ? "No patients at this facility yet."
+                      : isSuperAdmin
+                        ? "No patients across any facility yet."
+                        : "No patients yet."}
                 </td>
               </tr>
             )}
@@ -183,6 +227,9 @@ export default function AdminDashboard() {
                       {p.fullName}
                     </Link>
                   </td>
+                  {isSuperAdmin && (
+                    <td className="px-4 py-3 text-ink-soft">{p.facility?.name || "—"}</td>
+                  )}
                   <td className="px-4 py-3 text-ink-soft">{p.mrn || "—"}</td>
                   <td className="px-4 py-3 text-ink-soft">{p.contactNo || "—"}</td>
                   {allTabs.map((t) => {

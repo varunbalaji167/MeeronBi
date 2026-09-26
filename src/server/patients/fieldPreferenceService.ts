@@ -2,6 +2,7 @@ import { prisma } from "@/server/db/prisma";
 import { getTabByKey } from "@/domain/tabs";
 import { getCustomizableFields } from "@/domain/fieldVisibility";
 import { writeAuditLog } from "@/server/http/audit";
+import { ValidationError } from "@/server/http/errors";
 
 /** Backing store for "Customize fields": one row per (facility, tab) in `tab_field_preferences`. */
 
@@ -18,7 +19,7 @@ export async function saveFieldSelection(
   actorUserId?: string
 ): Promise<void> {
   const tab = getTabByKey(tabKey);
-  if (!tab) throw new Error(`Unknown tab "${tabKey}"`);
+  if (!tab) throw new ValidationError(`Unknown tab "${tabKey}"`, undefined, "TAB.UNKNOWN_KEY");
 
   // Only persist names that actually exist on this tab.
   const validNames = new Set(getCustomizableFields(tab).map((f) => f.name));

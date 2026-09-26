@@ -6,6 +6,10 @@ import { consumeToken } from "@/server/http/rateLimit";
 
 const LOGIN_RATE_LIMIT = { limit: 5, windowMs: 60_000 };
 
+// `authorize()` below throws bare `Error` rather than `AppError`, as an exception to CLAUDE.md
+// rule 4: NextAuth's credentials provider only forwards `Error.message` to the client and never
+// passes through `withApiErrorHandling`, so the typed hierarchy has no effect here.
+
 /** Rate-limits login attempts directly via `consumeToken` (NextAuth's authorize isn't wrapped by withRateLimit). */
 function rateLimitLogin(headers: Record<string, any> | undefined): void {
   const forwardedFor: string | undefined = headers?.["x-forwarded-for"];

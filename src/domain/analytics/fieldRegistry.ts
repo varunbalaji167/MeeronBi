@@ -17,6 +17,14 @@ function standardSegmentKeyFor(fieldName: string): keyof typeof STANDARD_SEGMENT
   return fieldName in STANDARD_SEGMENTS ? (fieldName as keyof typeof STANDARD_SEGMENTS) : undefined;
 }
 
+// Dates an entry, not a measurement in its own right — see docs/ANALYTICS_PLAN.md §3.
+const GESTATIONAL_AGE_COMPANION_FIELDS = new Set(["gestAgeWeeks", "pogWeeks"]);
+
+// A section with no date column can't resolve a time-series point — see docs/ANALYTICS_PLAN.md §3.
+function hasDateCompanion(fields: { type: FieldType }[]): boolean {
+  return fields.some((f) => f.type === "date");
+}
+
 /** One field's picker entries (multiselect explodes into one per option; date/free-text produce none). */
 function metaForField(tabKey: string, field: Pick<FieldConfig, "name" | "label" | "type" | "options">, multiValue: boolean): AnalyticsFieldMeta[] {
   switch (field.type as FieldType) {
@@ -76,20 +84,26 @@ export function getAnalyticsFieldRegistry(): AnalyticsFieldMeta[] {
         for (const field of section.fields) meta.push(...metaForField(tab.key, field, false));
       } else if (isGridSection(section)) {
         // Storage key convention (see components/forms/sections/GridSection.tsx): `${row.name}__${col.name}`.
+        const timeSeriesEligible = hasDateCompanion(section.valueColumns);
         for (const row of section.rows) {
           for (const col of section.valueColumns) {
+            if (GESTATIONAL_AGE_COMPANION_FIELDS.has(col.name)) continue;
             meta.push(
               ...metaForField(
                 tab.key,
                 { name: `${row.name}__${col.name}`, label: `${row.label} — ${col.label}`, type: col.type, options: col.options },
-                true
+                timeSeriesEligible
               )
             );
           }
         }
       } else if (isRepeatingSection(section)) {
         // Stored as an array of row objects; a patient can have more than one entry (e.g. G1, G2, ...).
-        for (const field of section.fields) meta.push(...metaForField(tab.key, field, true));
+        const timeSeriesEligible = hasDateCompanion(section.fields);
+        for (const field of section.fields) {
+          if (GESTATIONAL_AGE_COMPANION_FIELDS.has(field.name)) continue;
+          meta.push(...metaForField(tab.key, field, timeSeriesEligible));
+        }
       }
     }
   }

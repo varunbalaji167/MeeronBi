@@ -1,9 +1,10 @@
-# Analytics — design plan (not yet implemented)
+# Analytics — design reference
 
-Status: **draft**. Nothing in this document is wired into the running app.
-`src/domain/analytics/types.ts` holds the draft types this plan refers to —
-also not imported anywhere yet. This exists so the shape of the feature is
-agreed before any aggregation/API/UI code is written.
+Status: **implemented**. This document is the design record the shipped
+feature was built against — read it for the *why* behind the decision
+matrix, field classification, and disclosure-control rules; read the code
+(`src/domain/analytics/`, `src/server/analytics/`, `src/components/analytics/`)
+for current behavior.
 
 Source: `MeeronBi_Default_indicators_to_be_recorded.pdf`, pages 8-18
 ("Analytics" through the "Standard Segments" appendix).
@@ -45,7 +46,7 @@ not hand-maintained per field:
 |---|---|
 | `number` | Ratio |
 | `select`, `radio` | Categorical |
-| `multiselect` | Categorical, **exploded into one boolean sub-field per option** — a patient can have more than one condition selected, so a plain "count per value" would let percentages exceed 100%. Not addressed by the source spec; this is the cleanest fix. |
+| `multiselect` | Categorical, **exploded into one boolean sub-field per option** — a patient can have more than one condition selected, so a plain "count per value" would let percentages exceed 100%. Not addressed by the source spec; this is the cleanest fix. Resolution rule (`resolveValue.ts`): the field being **absent** (never asked) resolves to `null`, dropped from the denominator; **present but not including this option** resolves to `"No"`, keeping "% Yes" a share of patients actually asked, not of the whole cohort. |
 | `date` | Not directly analyzable. Feeds derived ratio fields (Age, gestational age) or serves as the time axis in time-series mode — never appears in the Field/Filter picker itself. |
 | `text`, `textarea`, `phone`, `time` | Excluded from the picker (free text isn't summarizable this way; phone is PII) |
 
@@ -54,6 +55,28 @@ Thyroid/ECHO grids, Treatments' visit rows, History's Obstetric History)
 are flagged `multiValue: true` — a patient can have more than one entry, so
 they're only eligible for **time-series mode**, not the simple cohort
 single-value path, until bucketed by trimester (see §5).
+
+**Two implementation-level exclusions in `fieldRegistry.ts`**, both
+narrower than the table above:
+
+- **"Gestational age at this entry" companion columns** (Investigation's
+  Thyroid grid, Treatments' measurements/courses — `gestAgeWeeks`,
+  `pogWeeks`) exist only to date their row, the same job a `date` column
+  does. They're excluded from the registry entirely rather than showing up
+  as always-empty, circular time-series fields.
+- **A grid/repeating section with no `date`-typed column at all**
+  (Investigation's Reactive Tests/ECHO Findings, Ultrasound's Doppler grid)
+  can never resolve a time-series point — its fields are treated as
+  ordinary (non-`multiValue`) fields instead, making them cohort-eligible
+  (e.g. "% HIV positive"). Left deliberately untouched: Treatments'
+  "courses" and History's Obstetric History both have a real date and pass
+  this check despite being debatable time-series candidates (courses rows
+  are different drugs; Obstetric History's date is a past pregnancy's) —
+  not resolved here, see open question below.
+
+Open question: should "courses" and Obstetric History be excluded from
+time-series mode on top of the date check above? No concrete example yet
+of a chart that would meaningfully use either as a trend.
 
 ## 4. Derived fields (not stored directly — computed at query time)
 
@@ -123,12 +146,31 @@ a specific patient. Recommendation: gate this behind the existing
 minimum count (e.g. n<5) rather than trusting staff-only access alone to
 make small-cell breakdowns safe.
 
-**Update:** `docs/SCALING_PLAN.md`'s security section now has the fuller
-version of this — a three-tier design (hardened public page / authenticated
+**Shipped as designed:** `docs/SCALING_PLAN.md`'s security section has the
+fuller three-tier design (hardened public page / authenticated
 `RESEARCHER` role with disclosure controls / differential privacy as a
-later upgrade) written once the project's actual research-access goal
-became explicit. This module's own access control should follow that
-`RESEARCHER` tier once it exists, not stay bolted only to `ADMIN`.
+later upgrade). This module's routes are gated by `requireAnalyticsSession`
+(`server/auth/guards.ts`, allows `ADMIN`/`SUPER_ADMIN`/approved
+`RESEARCHER`), and every cohort/time-series branch runs its output through
+`disclosureControl.ts` before it reaches the response — not left to the
+caller's judgment.
+
+### Disclosure-control shape decisions in `aggregate.ts`
+
+- **`ratioSummary` has no `suppressed` flag** (unlike `CategoricalBreakdown`/
+  `CrossTabCell`), so a below-threshold result comes back as
+  `centralTendencies([])` (all-zero/null) with empty `buckets` —
+  indistinguishable from "no data at all." The UI is expected to treat an
+  all-zero `ratioSummary` as "not enough data," not "confirmed zero."
+- **`ratioScatter`**: `ScatterPoint` carries no `patientId` by design, so
+  the only disclosure control available is all-or-nothing on the whole
+  plot — below threshold, every point is dropped, not a subset.
+- **`ratioByCategory`**: groups below threshold are dropped outright, not
+  merged into an "Other" bucket — central-tendency stats can't be combined
+  the way a count can.
+- **`categoryByCategory`/`categoryByRatio`** share one `crossTab()` helper
+  so percentages stay consistent between the two branches (each cell's
+  percent is of its own filter-group total, not the whole cohort).
 
 ## 8. Data-fetching strategy
 
@@ -145,35 +187,33 @@ patient volume grows by orders of magnitude, at which point denormalizing
 hot fields the way `Delivery.deliveryMode`/`RobsonClassification
 .groupNumber` already are would be the next step, not before.
 
-## 9. Sketch of what still needs building (not started)
+## 9. Where each piece lives
 
-- `server/analytics/fieldRegistry.ts` — walks all 7 tab configs once,
+- `src/domain/analytics/fieldRegistry.ts` — walks all 7 tab configs once,
   produces the `AnalyticsFieldMeta[]` the picker UI and the aggregation
-  functions both read from (see types file).
-- `server/analytics/derivedFields.ts` — `age`, `bmi`, gestational-age
+  functions both read from (see `types.ts`).
+- `src/domain/analytics/derivedFields.ts` — `age`, `bmi`, gestational-age
   bucketing.
-- `server/analytics/aggregate.ts` — implements the six branches in §2 plus
+- `src/server/analytics/aggregate.ts` — the six branches in §2 plus
   time-series (§5), each returning one of the `AnalyticsResult` variants
-  in the types file.
-- API routes (admin-only): a fields-list endpoint for the picker, a
-  cohort-summary endpoint, a time-series endpoint.
-- UI: field/filter pickers sourced from the registry, a stats panel, and a
-  chart chosen by the same decision table (recharts is already a
-  dependency — bar/pie/scatter/line all covered, no new library needed).
-  Likely `/admin/analytics` for cohort mode; time-series mode probably
-  belongs closer to a patient's own record rather than as a separate page.
+  in `types.ts`.
+- `src/app/api/analytics/{fields,cohort,timeseries}/route.ts` — the
+  researcher-facing endpoints (fields-list, cohort-summary, time-series).
+- `src/components/analytics/` — field/filter pickers, stats panels, and
+  chart components (`ResultChart`, `TimeSeriesChart`), surfaced at
+  `/admin/analytics`; time-series mode is a panel within the same
+  workbench rather than a separate patient-record tab.
 
-## 10. Open questions worth settling before implementation starts
+## 10. Open questions — resolved
 
-1. Categorical × Categorical with an implied ratio measure (matrix in
-   §2's last row) — the spec's wording is ambiguous about which cases
-   want counts vs. per-group averages. Needs a concrete example from
-   whoever owns the requirements.
-2. Should `STANDARD_SEGMENTS.tsh` (and maybe `.bmi`) be
-   hospital-configurable from day one, given they're clinically
-   contestable, or is a hardcoded default acceptable for v1?
-3. Minimum cell-count suppression threshold for privacy (§7) — is n<5 the
-   right bar, or should it follow whatever policy this hospital already
-   uses for its own reporting?
-4. Where does time-series mode live in the nav — a tab on the patient
-   record, or folded into the same `/admin/analytics` page as cohort mode?
+1. Categorical × Categorical with an implied ratio measure: shipped as
+   counts only (`categoryByCategory`/`categoryByRatio` in `aggregate.ts`)
+   — no per-group-average variant was built for this pairing.
+2. `STANDARD_SEGMENTS.tsh`/`.bmi` hospital-configurability: not done for
+   v1 — still a hardcoded default. Revisit if a second facility's clinical
+   staff need different bands.
+3. Minimum cell-count suppression threshold: `MIN_CELL_SIZE` in
+   `domain/analytics/disclosureControl.ts` — 5 for internal/researcher
+   audiences, 10 for public.
+4. Time-series mode's nav placement: folded into `/admin/analytics`
+   (`TimeSeriesPanel.tsx`), not a separate patient-record tab.

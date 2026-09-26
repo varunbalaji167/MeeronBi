@@ -2,6 +2,7 @@ import { z } from "zod";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/server/auth/guards";
 import { listPatients, createPatient } from "@/server/patients/patientRepository";
+import { resolvePatientListScope } from "@/server/patients/patientScope";
 import { withApiErrorHandling } from "@/server/http/withApiErrorHandling";
 import { ValidationError } from "@/server/http/errors";
 import { parseJson } from "@/server/http/parseJson";
@@ -13,8 +14,10 @@ const createPatientBodySchema = z.object({
 export const GET = withApiErrorHandling(async (req: NextRequest) => {
   const session = await requireAdminSession();
 
+  const scope = resolvePatientListScope(session.user, req.nextUrl.searchParams.get("facilityId") ?? undefined);
+
   const result = await listPatients({
-    facilityId: session.user.facilityId,
+    facilityId: scope,
     query: req.nextUrl.searchParams.get("q") ?? undefined,
     page: Number(req.nextUrl.searchParams.get("page")) || undefined,
     pageSize: Number(req.nextUrl.searchParams.get("pageSize")) || undefined,

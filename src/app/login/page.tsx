@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, Suspense } from "react";
-import { signIn } from "next-auth/react";
+import { signIn, signOut, getSession } from "next-auth/react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
@@ -44,6 +44,26 @@ const copy = {
   },
 };
 
+/** Roles allowed to sign in from each login tab. */
+const ALLOWED_ROLES: Record<keyof typeof copy, string[]> = {
+  patient: ["PATIENT"],
+  admin: ["ADMIN", "SUPER_ADMIN"],
+  researcher: ["RESEARCHER"],
+};
+
+const TAB_LABEL: Record<keyof typeof copy, string> = {
+  patient: "Patient",
+  admin: "Hospital staff",
+  researcher: "Researcher",
+};
+
+const ROLE_TAB: Record<string, keyof typeof copy> = {
+  PATIENT: "patient",
+  ADMIN: "admin",
+  SUPER_ADMIN: "admin",
+  RESEARCHER: "researcher",
+};
+
 function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
@@ -57,16 +77,18 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // True while checking the just-signed-in role against this tab; blocks the redirect effect below.
+  const [checkingRole, setCheckingRole] = useState(false);
 
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || !role || checkingRole) return;
     // Only toast if this submit just completed the sign-in, not on an already-authenticated landing.
     if (submitting) showToast("Signed in successfully.", "success");
     router.replace(
       role === "ADMIN" || role === "SUPER_ADMIN" ? "/admin" : role === "PATIENT" ? "/patient" : role === "RESEARCHER" ? "/researcher" : "/"
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, role, router]);
+  }, [isAuthenticated, role, router, submitting, checkingRole]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -81,9 +103,24 @@ function LoginForm() {
         setError(res.error === "CredentialsSignin" ? "That email and password don't match our records." : res.error);
         return;
       }
-      // Leave `submitting` true; the effect above redirects once useSession() picks up the cookie.
+
+      // Read the fresh session directly so a wrong-tab account is caught before the redirect effect fires.
+      setCheckingRole(true);
+      const session = await getSession();
+      const actualRole = session?.user?.role;
+      if (actualRole && !ALLOWED_ROLES[roleHint].includes(actualRole)) {
+        await signOut({ redirect: false });
+        const correctTab = TAB_LABEL[ROLE_TAB[actualRole] ?? "admin"];
+        setError(`That's a ${correctTab.toLowerCase()} account. Switch to the "${correctTab}" tab above to sign in.`);
+        setSubmitting(false);
+        setCheckingRole(false);
+        return;
+      }
+      setCheckingRole(false);
+      // Leave `submitting` true; the effect above redirects now that checkingRole is clear.
     } catch {
       setSubmitting(false);
+      setCheckingRole(false);
       setError("Could not reach the server. Check your connection and try again.");
     }
   }
@@ -223,7 +260,13 @@ function LoginForm() {
                 .
               </>
             ) : (
-              "Need an account? Contact your MeeronBi administrator."
+              <>
+                Need an account?{" "}
+                <Link href="/researcher-access" className="font-medium text-brand-600 hover:underline">
+                  Request researcher access
+                </Link>
+                .
+              </>
             )}
           </p>
         </div>

@@ -8,6 +8,7 @@ export const ANALYTICS_ERROR = {
   UNKNOWN_FILTER: "ANALYTICS.UNKNOWN_FILTER",
   SAME_FIELD_AS_FILTER: "ANALYTICS.SAME_FIELD_AS_FILTER",
   FIELD_NOT_ANALYZABLE: "ANALYTICS.FIELD_NOT_ANALYZABLE",
+  TIME_SERIES_MODE_CONFLICT: "ANALYTICS.TIME_SERIES_MODE_CONFLICT",
 } as const;
 
 export function unknownFieldError(ref: string): ValidationError {
@@ -32,5 +33,14 @@ export function fieldNotAnalyzableError(ref: string): ValidationError {
     `"${ref}" can't be used for analytics (it's free text, or excluded from the field picker).`,
     undefined,
     ANALYTICS_ERROR.FIELD_NOT_ANALYZABLE
+  );
+}
+
+/** A time-series query must be single-patient (`patientId`) or cohort (`filter`), never both. */
+export function timeSeriesModeConflictError(): ValidationError {
+  return new ValidationError(
+    "A time-series query can be single-patient or cohort, not both — provide patientId or filter, not both.",
+    undefined,
+    ANALYTICS_ERROR.TIME_SERIES_MODE_CONFLICT
   );
 }

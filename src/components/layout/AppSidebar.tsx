@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import SignOutButton from "./SignOutButton";
-import { Menu, X, Users, BarChart3, FileHeart, ShieldCheck, LineChart, type LucideIcon } from "lucide-react";
+import { Menu, X, Users, BarChart3, FileHeart, ShieldCheck, LineChart, Building2, type LucideIcon } from "lucide-react";
 
 interface NavItem {
   href: string;
@@ -23,6 +23,7 @@ const NAV_CONFIG: Record<SidebarRole, { roleLabel: string; items: NavItem[] }> =
     roleLabel: "Hospital Staff",
     items: [
       { href: "/admin", label: "Patients", icon: Users, exact: true },
+      { href: "/admin/analytics", label: "Analytics", icon: LineChart },
       { href: "/public/trends", label: "Public Trends", icon: BarChart3 },
     ],
   },
@@ -42,8 +43,11 @@ const NAV_CONFIG: Record<SidebarRole, { roleLabel: string; items: NavItem[] }> =
   },
 };
 
-// SUPER_ADMIN-only nav item, added conditionally rather than in NAV_CONFIG.
-const SUPER_ADMIN_ITEM: NavItem = { href: "/admin/researchers", label: "Researcher Requests", icon: ShieldCheck };
+// SUPER_ADMIN-only nav items, added conditionally rather than in NAV_CONFIG.
+const SUPER_ADMIN_ITEMS: NavItem[] = [
+  { href: "/admin/facilities", label: "Facilities", icon: Building2 },
+  { href: "/admin/researchers", label: "Researcher Requests", icon: ShieldCheck },
+];
 
 function initialsFor(email: string): string {
   const local = email.split("@")[0] ?? email;
@@ -58,7 +62,7 @@ export default function AppSidebar({ role }: { role: SidebarRole }) {
   const [open, setOpen] = useState(false);
   const { roleLabel: baseRoleLabel, items: baseItems } = NAV_CONFIG[role];
   const roleLabel = role === "admin" && isSuperAdmin ? "MeeronBi Team" : baseRoleLabel;
-  const items = role === "admin" && isSuperAdmin ? [...baseItems, SUPER_ADMIN_ITEM] : baseItems;
+  const items = role === "admin" && isSuperAdmin ? [...baseItems, ...SUPER_ADMIN_ITEMS] : baseItems;
 
   // Close the mobile drawer automatically whenever the route changes.
   useEffect(() => {

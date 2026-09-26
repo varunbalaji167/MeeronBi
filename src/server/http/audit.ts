@@ -4,19 +4,15 @@ export interface WriteAuditLogInput {
   facilityId: string;
   actorUserId?: string | null;
   action: AuditAction;
-  entityType: "Patient" | "TabRecord" | "User" | "ResearcherProfile" | "TabFieldPreference";
+  entityType: "Patient" | "TabRecord" | "User" | "ResearcherProfile" | "TabFieldPreference" | "Facility";
   entityId: string;
   before?: unknown;
   after?: unknown;
   requestId?: string | null;
 }
 
-/**
- * Writes one AuditLog row. `tx` must be the same `Prisma.TransactionClient` as the mutation being
- * recorded — call this inside the mutation's own `prisma.$transaction(...)`, never after it. A
- * swallowed audit write on a successful mutation is exactly the silent compliance gap this pattern
- * exists to prevent, so there is deliberately no standalone "log after the fact" variant.
- */
+// `tx` must be the same `Prisma.TransactionClient` as the mutation being recorded — call inside
+// the mutation's own `prisma.$transaction(...)`, never after it; no standalone "log after" variant.
 export async function writeAuditLog(tx: Prisma.TransactionClient, input: WriteAuditLogInput): Promise<void> {
   await tx.auditLog.create({
     data: {

@@ -15,7 +15,11 @@ const portalAccessBodySchema = z.object({
 export const GET = withApiErrorHandling(async (_req: NextRequest, { params }: { params: { id: string } }) => {
   const session = await assertPatientRecordAccessible(params.id);
 
-  const patient = await getPatientById(params.id, session.user.facilityId);
+  // SUPER_ADMIN isn't facility-scoped; access was already verified above.
+  const patient = await getPatientById(
+    params.id,
+    session.user.role === "SUPER_ADMIN" ? undefined : session.user.facilityId
+  );
   if (!patient) throw patientNotFoundInFacilityError();
 
   return NextResponse.json({ patient });

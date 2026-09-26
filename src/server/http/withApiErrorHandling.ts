@@ -1,11 +1,9 @@
 import { NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { AppError } from "./errors";
 import { log } from "./logger";
 
-/**
- * Wraps a route handler so any thrown error becomes a well-formed JSON response with a request id.
- * Known `AppError`s pass through their statusCode/code/message/detail; anything else logs the real error and returns a generic 500.
- */
+// Wraps a route handler so any thrown error becomes a well-formed JSON response with a request id.
 export function withApiErrorHandling<Args extends any[]>(
   handler: (...args: Args) => Promise<Response>
 ) {
@@ -29,7 +27,6 @@ export function withApiErrorHandling<Args extends any[]>(
       }
       log.error({ requestId, err: err instanceof Error ? err.stack ?? err.message : String(err) }, "Unhandled API error");
       if (process.env.SENTRY_DSN) {
-        const Sentry = require("@sentry/nextjs");
         Sentry.captureException(err, { tags: { requestId } });
       }
       return NextResponse.json(

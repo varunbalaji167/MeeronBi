@@ -17,3 +17,12 @@ export async function getHqFacility() {
   }
   return facility;
 }
+
+/** Real hospitals only, for super-admin facility pickers — excludes the administrative "hq" facility. */
+export async function listFacilities() {
+  return prisma.facility.findMany({
+    where: { slug: { not: "hq" } },
+    select: { id: true, name: true, slug: true },
+    orderBy: { name: "asc" },
+  });
+}

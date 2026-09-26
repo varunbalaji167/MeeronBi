@@ -3,6 +3,7 @@ import { prisma } from "@/server/db/prisma";
 import { computeRobsonGroup, getTabByKey } from "@/domain/tabs";
 import { sanitizeTabData } from "@/domain/validation";
 import { writeAuditLog } from "@/server/http/audit";
+import { ValidationError } from "@/server/http/errors";
 
 export type TabRecordStatus = "DRAFT" | "COMPLETE";
 
@@ -76,7 +77,7 @@ export async function saveTabRecord(
   status: TabRecordStatus,
   actorUserId?: string
 ): Promise<TabRecordResult> {
-  if (!getDelegate(prisma, tabKey)) throw new Error(`Unknown tab "${tabKey}"`);
+  if (!getDelegate(prisma, tabKey)) throw new ValidationError(`Unknown tab "${tabKey}"`, undefined, "TAB.UNKNOWN_KEY");
 
   // Defense in depth: always normalize server-side, never trust client-side sanitization alone.
   const tab = getTabByKey(tabKey);
@@ -111,7 +112,7 @@ export async function saveTabRecord(
 }
 
 export async function deleteTabRecord(tabKey: string, patientId: string, actorUserId?: string): Promise<void> {
-  if (!getDelegate(prisma, tabKey)) throw new Error(`Unknown tab "${tabKey}"`);
+  if (!getDelegate(prisma, tabKey)) throw new ValidationError(`Unknown tab "${tabKey}"`, undefined, "TAB.UNKNOWN_KEY");
 
   await prisma.$transaction(async (tx) => {
     const delegate = getDelegate(tx, tabKey)!;

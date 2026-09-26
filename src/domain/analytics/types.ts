@@ -72,6 +72,17 @@ export const STANDARD_SEGMENTS = {
 /** Which pregnancy-timeline bucket a dated entry falls into. */
 export type TrimesterBucket = "prePregnancy" | "t1" | "t2" | "t3";
 
+/** Canonical display order for TrimesterBucket — shared by aggregation (aggregate.ts) and the time-series chart's X axis. */
+export const TRIMESTER_BUCKET_ORDER: TrimesterBucket[] = ["prePregnancy", "t1", "t2", "t3"];
+
+/** Short display label per bucket, same order as TRIMESTER_BUCKET_ORDER. */
+export const TRIMESTER_BUCKET_LABELS: Record<TrimesterBucket, string> = {
+  prePregnancy: "Pre-pregnancy",
+  t1: "Trimester 1",
+  t2: "Trimester 2",
+  t3: "Trimester 3",
+};
+
 export interface CentralTendencies {
   count: number;
   average: number;
@@ -134,10 +145,29 @@ export interface TimeSeriesResult {
   series: { label: string; points: TimeSeriesPoint[] }[];
 }
 
+// One patient's dated entries for a `multiValue` field, plus `lmp` for trimester bucketing.
+// `filterValue` (cohort mode only): `null` means "didn't answer the filter", dropped from grouping.
+export interface TimeSeriesPatientData {
+  patientId: string;
+  lmp: string | null;
+  filterValue?: string | null;
+  entries: { value: number; date: string }[];
+}
+
+export type TimeSeriesDataset = TimeSeriesPatientData[];
+
 export interface AnalyticsQuery {
   field: FieldRef;
   filter?: FieldRef;
 }
+
+/** One patient's data across every tab, keyed by tabKey — the unit `resolveValue.ts`'s resolvers operate on. */
+export interface CohortPatient {
+  patientId: string;
+  tabs: Record<string, Record<string, any>>;
+}
+
+export type CohortDataset = CohortPatient[];
 
 /** Discriminated union so the UI can pick its chart type off `kind` alone. */
 export type AnalyticsResult =

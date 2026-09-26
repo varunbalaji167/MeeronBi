@@ -37,6 +37,7 @@ enum AuditAction {
   REJECT
   PORTAL_ACCESS_SET
   PORTAL_ACCESS_REVOKED
+  ANALYTICS_QUERY
 }
 
 // The tenant boundary — every Patient/User/TabFieldPreference belongs to one Facility.
@@ -266,7 +267,7 @@ model AuditLog {
   actorUserId String?
   actor       User?       @relation(fields: [actorUserId], references: [id])
   action      AuditAction
-  entityType  String // "Patient" | "TabRecord" | "User" | "ResearcherProfile" | "TabFieldPreference"
+  entityType  String // "Patient" | "TabRecord" | "User" | "ResearcherProfile" | "TabFieldPreference" | "Analytics"
   entityId    String
   before      Json?
   after       Json?

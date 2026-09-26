@@ -39,6 +39,11 @@ export async function toApiError(res: Response, fallbackMessage = "Something wen
 const DETAIL_MESSAGES: Partial<Record<string, string>> = {
   "AUTH.SESSION_STALE":
     "Your session is no longer valid (often caused by a database reset/reseed after you signed in) — please sign out and sign in again.",
+  "ANALYTICS.UNKNOWN_FIELD": "That field isn't recognized. Try picking it again from the list.",
+  "ANALYTICS.UNKNOWN_FILTER": "That filter field isn't recognized. Try picking it again from the list.",
+  "ANALYTICS.SAME_FIELD_AS_FILTER": "Pick a different field for the filter than the one you're analyzing.",
+  "ANALYTICS.FIELD_NOT_ANALYZABLE": "That field can't be analyzed this way — pick a different one.",
+  "ANALYTICS.TIME_SERIES_MODE_CONFLICT": "Choose either a patient or a filter category, not both.",
 };
 
 /** Maps a caught error to a short, actionable toast message. */

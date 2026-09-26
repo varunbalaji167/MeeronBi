@@ -7,7 +7,7 @@ const DEFAULT_PAGE_SIZE = 10;
 const MAX_PAGE_SIZE = 50;
 
 export interface ListPatientsParams {
-  facilityId: string;
+  facilityId?: string;
   query?: string;
   page?: number;
   pageSize?: number;
@@ -30,7 +30,7 @@ export async function listPatients({ facilityId, query, page = 1, pageSize = DEF
   const q = query?.trim();
 
   const where = {
-    facilityId,
+    ...(facilityId ? { facilityId } : {}),
     ...(q ? { OR: [{ fullName: { contains: q } }, { mrn: { contains: q } }, { contactNo: { contains: q } }] } : {}),
   };
 
@@ -40,7 +40,7 @@ export async function listPatients({ facilityId, query, page = 1, pageSize = DEF
       orderBy: { updatedAt: "desc" },
       skip: (safePage - 1) * safePageSize,
       take: safePageSize,
-      include: TAB_STATUS_INCLUDE,
+      include: { ...TAB_STATUS_INCLUDE, facility: { select: { name: true, slug: true } } },
     }),
     prisma.patient.count({ where }),
   ]);
@@ -140,9 +140,10 @@ export async function syncPatientSummaryFromPersonal(
   }
 }
 
-export async function getPatientById(id: string, facilityId: string) {
+/** `facilityId` is optional only for SUPER_ADMIN callers that already verified access another way; everyone else must pass it. */
+export async function getPatientById(id: string, facilityId?: string) {
   return prisma.patient.findFirst({
-    where: { id, facilityId },
+    where: facilityId ? { id, facilityId } : { id },
     include: { user: { select: { email: true } } },
   });
 }

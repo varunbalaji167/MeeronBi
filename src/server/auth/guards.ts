@@ -69,19 +69,49 @@ export async function requireResearcherSession(): Promise<Session> {
   return session;
 }
 
+/** `facilityId` omitted (super-admin/unscoped) checks the patient merely exists; given, checks it matches. */
+export async function patientBelongsToFacility(patientId: string, facilityId?: string): Promise<boolean> {
+  if (facilityId === undefined) {
+    const exists = await prisma.patient.findUnique({ where: { id: patientId }, select: { id: true } });
+    return !!exists;
+  }
+  const patient = await prisma.patient.findUnique({ where: { id: patientId }, select: { facilityId: true } });
+  return !!patient && patient.facilityId === facilityId;
+}
+
+async function assertPatientBelongsToFacility(patientId: string, facilityId?: string): Promise<void> {
+  if (!(await patientBelongsToFacility(patientId, facilityId))) throw patientNotFoundInFacilityError();
+}
+
 /** Require an ADMIN/SUPER_ADMIN session where `patientId` belongs to the admin's own facility (skipped for SUPER_ADMIN). Every write path taking a patientId must use this, not `requireAdminSession`. */
 export async function requireAdminSessionForPatient(patientId: string): Promise<Session> {
   const session = await requireAdminSession();
-  if (session.user.role === "SUPER_ADMIN") {
-    const exists = await prisma.patient.findUnique({ where: { id: patientId }, select: { id: true } });
-    if (!exists) throw patientNotFoundInFacilityError();
+  await assertPatientBelongsToFacility(patientId, session.user.role === "SUPER_ADMIN" ? undefined : session.user.facilityId);
+  return session;
+}
+
+// ADMIN/SUPER_ADMIN, or an APPROVED RESEARCHER (re-checked live, never the cached session status).
+export async function requireAnalyticsSession(): Promise<Session> {
+  const session = await getSession();
+  if (!session?.user) throw new UnauthorizedError();
+
+  if (session.user.role === "ADMIN" || session.user.role === "SUPER_ADMIN") {
+    if (!(await userExists(session.user.id))) throw sessionStaleError();
     return session;
   }
-  const patient = await prisma.patient.findUnique({ where: { id: patientId }, select: { facilityId: true } });
-  if (!patient || patient.facilityId !== session.user.facilityId) {
-    throw patientNotFoundInFacilityError();
+
+  if (session.user.role === "RESEARCHER") {
+    const profile = await prisma.researcherProfile.findUnique({
+      where: { userId: session.user.id },
+      select: { status: true },
+    });
+    if (!profile || profile.status !== "APPROVED") {
+      throw researcherNotApprovedError();
+    }
+    return session;
   }
-  return session;
+
+  throw wrongRoleError("Analytics access requires admin or approved researcher access.");
 }
 
 /**
@@ -91,14 +121,8 @@ export async function requireAdminSessionForPatient(patientId: string): Promise<
 export async function assertPatientRecordAccessible(patientId: string): Promise<Session> {
   const session = await getSession();
   if (!session?.user) throw new UnauthorizedError();
-  if (session.user.role === "SUPER_ADMIN") {
-    const exists = await prisma.patient.findUnique({ where: { id: patientId }, select: { id: true } });
-    if (!exists) throw patientNotFoundInFacilityError();
-    return session;
-  }
-  if (session.user.role === "ADMIN") {
-    const patient = await prisma.patient.findUnique({ where: { id: patientId }, select: { facilityId: true } });
-    if (!patient || patient.facilityId !== session.user.facilityId) throw patientNotFoundInFacilityError();
+  if (session.user.role === "SUPER_ADMIN" || session.user.role === "ADMIN") {
+    await assertPatientBelongsToFacility(patientId, session.user.role === "SUPER_ADMIN" ? undefined : session.user.facilityId);
     return session;
   }
   if (session.user.role === "PATIENT" && session.user.patientId === patientId) return session;

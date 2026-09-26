@@ -45,23 +45,32 @@ describe("getAnalyticsFieldRegistry", () => {
   });
 
   it("flattens a grid section's row x column combination into one field per cell, using the same row__col storage key the form uses", () => {
-    const tshGestAge = findByRef((r) => r.kind === "stored" && r.fieldName === "tsh__gestAgeWeeks");
-    expect(tshGestAge).toHaveLength(1);
-    expect(tshGestAge[0].dataType).toBe("ratio");
-    expect(tshGestAge[0].multiValue).toBe(true);
+    const vdrl = findByRef((r) => r.kind === "stored" && r.fieldName === "vdrl__result");
+    expect(vdrl).toHaveLength(1);
+    expect(vdrl[0].dataType).toBe("categorical");
+    expect(vdrl[0].label).toBe("62. VDRL — Result");
 
     // The grid's "level" column is free text — still excluded even inside a grid.
     expect(findByRef((r) => r.kind === "stored" && r.fieldName === "tsh__level")).toHaveLength(0);
   });
 
-  it("flags a grid's radio-result column as categorical and multiValue, per-row (VDRL, HCV Ab, HbSAg, HIV each get their own field)", () => {
-    const vdrl = findByRef((r) => r.kind === "stored" && r.fieldName === "vdrl__result");
-    expect(vdrl).toHaveLength(1);
-    expect(vdrl[0].dataType).toBe("categorical");
-    expect(vdrl[0].multiValue).toBe(true);
+  it("excludes gestAgeWeeks/pogWeeks companion columns everywhere they appear — they date an entry, they aren't a measurement", () => {
+    expect(findByRef((r) => r.kind === "stored" && r.fieldName === "tsh__gestAgeWeeks")).toHaveLength(0);
+    expect(findByRef((r) => r.kind === "stored" && r.fieldName === "niptOrAmnio__gestAgeWeeks")).toHaveLength(0);
+    expect(findByRef((r) => r.kind === "stored" && r.fieldName === "pogWeeks")).toHaveLength(0);
   });
 
-  it("flags a repeating section's fields as multiValue (a patient can have more than one Obstetric History entry)", () => {
+  it("does not flag a grid's fields as multiValue when the grid has no date column — nothing to bucket a time-series point by (VDRL, HCV Ab, HbSAg, HIV; also Ultrasound's Doppler grid)", () => {
+    const vdrl = findByRef((r) => r.kind === "stored" && r.fieldName === "vdrl__result");
+    expect(vdrl[0].multiValue).toBeUndefined();
+
+    const umbilicalArteryRi = findByRef((r) => r.kind === "stored" && r.fieldName === "umbilicalArtery__ri");
+    expect(umbilicalArteryRi).toHaveLength(1);
+    expect(umbilicalArteryRi[0].dataType).toBe("ratio");
+    expect(umbilicalArteryRi[0].multiValue).toBeUndefined();
+  });
+
+  it("flags a repeating section's fields as multiValue when its section has a real date field (a patient can have more than one Obstetric History entry)", () => {
     const weight1 = findByRef((r) => r.kind === "stored" && r.fieldName === "weight1Kg");
     expect(weight1).toHaveLength(1);
     expect(weight1[0].dataType).toBe("ratio");

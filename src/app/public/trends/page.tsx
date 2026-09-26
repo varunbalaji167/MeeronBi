@@ -19,6 +19,7 @@ import {
   Line,
   CartesianGrid,
 } from "recharts";
+import { CHART_COLORS, CHART_GRID_STROKE, CHART_AXIS_PROPS, CHART_TOOLTIP_STYLE } from "@/components/analytics/chartTheme";
 
 interface Trends {
   totalPatients: number;
@@ -27,8 +28,6 @@ interface Trends {
   avgBabyWeightKg: number | null;
   registrationsByMonth: { month: string; count: number }[];
 }
-
-const CHART_COLORS = ["#0E6B5C", "#B8862E", "#79B7A4", "#A3423D", "#3D8E77", "#EBC97A"];
 
 export default function PublicTrendsPage() {
   const [trends, setTrends] = useState<Trends | null>(null);
@@ -108,10 +107,10 @@ export default function PublicTrendsPage() {
               </h2>
               <ResponsiveContainer width="100%" height={260}>
                 <LineChart data={trends.registrationsByMonth}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E1E0D5" />
-                  <XAxis dataKey="month" fontSize={12} stroke="#6B7268" />
-                  <YAxis allowDecimals={false} fontSize={12} stroke="#6B7268" />
-                  <Tooltip contentStyle={{ borderRadius: 8, borderColor: "#E1E0D5", fontSize: 13 }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
+                  <XAxis dataKey="month" {...CHART_AXIS_PROPS} />
+                  <YAxis allowDecimals={false} {...CHART_AXIS_PROPS} />
+                  <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
                   <Line type="monotone" dataKey="count" stroke="#0E6B5C" strokeWidth={2} dot={false} />
                 </LineChart>
               </ResponsiveContainer>
@@ -134,7 +133,7 @@ export default function PublicTrendsPage() {
                       <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip contentStyle={{ borderRadius: 8, borderColor: "#E1E0D5", fontSize: 13 }} />
+                  <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
@@ -145,12 +144,12 @@ export default function PublicTrendsPage() {
               </h2>
               <ResponsiveContainer width="100%" height={260}>
                 <BarChart data={trends.robsonGroups}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E1E0D5" />
-                  <XAxis dataKey="group" tickFormatter={(g) => `Grp ${g}`} fontSize={12} stroke="#6B7268" />
-                  <YAxis allowDecimals={false} fontSize={12} stroke="#6B7268" />
+                  <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
+                  <XAxis dataKey="group" tickFormatter={(g) => `Grp ${g}`} {...CHART_AXIS_PROPS} />
+                  <YAxis allowDecimals={false} {...CHART_AXIS_PROPS} />
                   <Tooltip
                     labelFormatter={(g) => `Robson Group ${g}`}
-                    contentStyle={{ borderRadius: 8, borderColor: "#E1E0D5", fontSize: 13 }}
+                    contentStyle={CHART_TOOLTIP_STYLE}
                   />
                   <Bar dataKey="count" fill="#0E6B5C" radius={[4, 4, 0, 0]} />
                 </BarChart>

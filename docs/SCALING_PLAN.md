@@ -1,18 +1,13 @@
 # Scaling plan — foundation for growth (one state → many countries)
 
-Status: **plan, not yet implemented.** Grounded in the actual current
-schema/code (checked against `prisma/schema.prisma`, `server/auth/guards.ts`,
-`next.config.mjs`, `server/http/errors.ts` while writing this), not generic
-advice. Nothing here is wired in yet.
+Status: **Phase 0 and pulled-forward Phase 1 items landed** — see "Status
+as of this writing" below for the per-item breakdown. Grounded in the
+actual current schema/code, not generic advice.
 
-> **Update:** the Facility/tenant model (§3's highest-priority item) has
-> since been implemented — see `prisma/schema.prisma`'s `Facility` model
-> and every repository/guard listed in the Phase 0 checklist below. **A
-> real database connection is required to finish this**: run
-> `npx prisma generate` then `npx prisma migrate dev --name init`
-> locally before starting the app, since the Prisma client's generated
-> types (and the actual migration SQL) can't be produced without one. Until
-> that's run, anything importing `@prisma/client` won't compile.
+> A real database connection is required to run the app: run
+> `npx prisma generate` then `npx prisma migrate dev` locally before
+> starting it, since the Prisma client's generated types (and the actual
+> migration SQL) can't be produced without one.
 
 **North Star** (stated explicitly, so it doesn't just live in chat
 history): the goal of this project is a strong, scalable foundation —

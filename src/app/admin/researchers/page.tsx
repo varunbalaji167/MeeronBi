@@ -90,8 +90,8 @@ export default function ResearcherRequestsPage() {
         <h1 className="font-display text-2xl italic text-ink">Researcher Access Requests</h1>
       </div>
       <p className="mt-1 text-sm text-ink-soft">
-        Approving grants sign-in and analytics access; nothing here grants access to individual patient records —
-        that&apos;s a structurally separate code path (see <code className="rounded bg-paper px-1 py-0.5 text-xs">requireResearcherSession</code>).
+        Approving grants sign-in and access to aggregate analytics only — researchers can never view an
+        individual patient&apos;s record.
       </p>
 
       <div className="mt-6 flex gap-2 border-b border-line">
