@@ -58,6 +58,53 @@ developer/session has configured locally (see `README`'s setup steps).
 Nothing here is wired into an actual backup schedule, restore test, or
 monitoring alert today.
 
+**Deliberate scope call (2026-09-26):** at this project's current scale —
+one facility, low volume, still ramping up — picking a specific
+RPO/RTO/retention number now would be a guess dressed up as a decision.
+What's written below instead is *how a backup gets wired into this
+codebase once a real number and provider are chosen*, so that choice is a
+config change, not a redesign, whenever a future session (or a
+"we now serve N hospitals" trigger) makes it.
+
+## (d) How backups plug into this codebase, once chosen
+
+This section is deliberately generic — it names the integration points,
+not a schedule. Whoever picks the provider fills in cron timing/retention
+against section (a)'s questions.
+
+- **Where backups actually come from:** if a managed provider from the
+  shortlist above is chosen (DigitalOcean Managed MySQL is the current
+  favorite absent a reason otherwise), that provider's own automated
+  backup/point-in-time-recovery feature *is* the backup — there's nothing
+  in this repo to build. This subsection only matters if that decision
+  instead lands on a self-hosted MySQL on a VPS, where nothing does this
+  automatically.
+- **If self-hosted:** a `mysqldump --single-transaction <db> | gzip` on a
+  cron job, writing to storage *off* the same VPS (a different provider's
+  object storage, at minimum — a backup that dies with the same disk as
+  the database it's backing up isn't a backup). No script for this exists
+  in the repo yet; when one is added, it belongs as a standalone ops
+  script (e.g. `scripts/backup-db.sh`), not inside `src/`, since it's
+  infrastructure, not application code, and never touches `domain/`.
+- **Credentials:** a backup script's DB credentials are a second secret
+  alongside `DATABASE_URL` — same rule as every other secret in this
+  project (see the deployment runbook's "rotate every default secret"
+  step): never committed, injected via the host's env/secrets mechanism
+  only.
+- **Restore-test verification:** `docs/FOUNDATION_PLAN.md`'s Workstream B
+  landed `AuditLog` specifically so a restore can be checked against more
+  than "the command exited 0" — after a scratch restore, `SELECT COUNT(*)
+  FROM AuditLog` plus a spot-check of the most recent rows against what's
+  expected is a concrete, cheap correctness check that doesn't require a
+  separate tool.
+- **Monitoring hook:** `/api/health`'s `checks.db` already reports "does
+  the app have a live DB connection right now" — that's a *liveness*
+  signal, not a backup-freshness one. A future "when did the last backup
+  actually succeed" check is a separate, not-yet-built concern (most
+  managed providers surface this in their own dashboard/alerting; a
+  self-hosted cron job would need to write its own last-success
+  timestamp somewhere `/api/health` — or a dedicated check — could read).
+
 ---
 
 Related: `docs/SCALING_PLAN.md`'s Phase 0 checklist tracks "documented

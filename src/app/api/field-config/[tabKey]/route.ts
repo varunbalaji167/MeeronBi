@@ -1,9 +1,15 @@
+import { z } from "zod";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/server/auth/guards";
 import { getStoredFieldSelection, saveFieldSelection } from "@/server/patients/fieldPreferenceService";
 import { getTabByKey } from "@/domain/tabs";
 import { withApiErrorHandling } from "@/server/http/withApiErrorHandling";
 import { NotFoundError } from "@/server/http/errors";
+import { parseJson } from "@/server/http/parseJson";
+
+const fieldSelectionBodySchema = z.object({
+  enabledFieldNames: z.array(z.string()),
+});
 
 // Admin-only: facility-wide field selection preference for a tab.
 export const GET = withApiErrorHandling(async (_req: NextRequest, { params }: { params: { tabKey: string } }) => {
@@ -18,8 +24,7 @@ export const PUT = withApiErrorHandling(async (req: NextRequest, { params }: { p
   const session = await requireAdminSession();
   if (!getTabByKey(params.tabKey)) throw new NotFoundError("Unknown tab.");
 
-  const body = await req.json().catch(() => ({}));
-  const enabledFieldNames = Array.isArray(body?.enabledFieldNames) ? body.enabledFieldNames : [];
-  await saveFieldSelection(session.user.facilityId, params.tabKey, enabledFieldNames, session.user.id);
+  const body = await parseJson(req, fieldSelectionBodySchema);
+  await saveFieldSelection(session.user.facilityId, params.tabKey, body.enabledFieldNames, session.user.id);
   return NextResponse.json({ ok: true });
 });

@@ -1,8 +1,14 @@
+import { z } from "zod";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/server/auth/guards";
 import { listPatients, createPatient } from "@/server/patients/patientRepository";
 import { withApiErrorHandling } from "@/server/http/withApiErrorHandling";
 import { ValidationError } from "@/server/http/errors";
+import { parseJson } from "@/server/http/parseJson";
+
+const createPatientBodySchema = z.object({
+  fullName: z.string(),
+});
 
 export const GET = withApiErrorHandling(async (req: NextRequest) => {
   const session = await requireAdminSession();
@@ -20,8 +26,8 @@ export const GET = withApiErrorHandling(async (req: NextRequest) => {
 export const POST = withApiErrorHandling(async (req: NextRequest) => {
   const session = await requireAdminSession();
 
-  const body = await req.json();
-  const fullName = (body?.fullName ?? "").trim();
+  const body = await parseJson(req, createPatientBodySchema);
+  const fullName = body.fullName.trim();
   if (!fullName) throw new ValidationError("Full name is required.", { fullName: "Full name is required." });
 
   const patient = await createPatient({

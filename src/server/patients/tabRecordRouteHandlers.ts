@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { NextResponse } from "next/server";
 import { assertPatientRecordAccessible, requireAdminSessionForPatient } from "@/server/auth/guards";
 import { isKnownTabKey, getTabRecord, saveTabRecord, deleteTabRecord } from "./tabRecordRepository";
@@ -5,6 +6,15 @@ import { syncPatientSummaryFromPersonal } from "./patientRepository";
 import { getTabByKey } from "@/domain/tabs";
 import { getIncompleteReasons, getFieldLevelErrors } from "@/domain/validation";
 import { NotFoundError, ValidationError } from "@/server/http/errors";
+import { parseJson } from "@/server/http/parseJson";
+
+// Shape-only check: `data`'s field-by-field content is sanitized by sanitizeTabData
+// inside saveTabRecord, per CLAUDE.md rule 3 — this just rejects a malformed body
+// (wrong type for `data`/`status`) before it reaches that layer.
+const tabSaveBodySchema = z.object({
+  data: z.record(z.unknown()),
+  status: z.enum(["DRAFT", "COMPLETE"]).optional(),
+});
 
 /** Thin HTTP adapters shared by every `/api/patients/[id]/{tab}/route.ts`; data access lives in tabRecordRepository.ts, auth in guards.ts. */
 
@@ -21,9 +31,9 @@ export async function handleTabSave(tabKey: string, patientId: string, req: Requ
   const session = await requireAdminSessionForPatient(patientId);
   if (!isKnownTabKey(tabKey)) throw new NotFoundError("Unknown tab.");
 
-  const body = await req.json();
-  const data = body?.data ?? {};
-  const status = body?.status === "COMPLETE" ? "COMPLETE" : "DRAFT";
+  const body = await parseJson(req, tabSaveBodySchema);
+  const data = body.data;
+  const status = body.status === "COMPLETE" ? "COMPLETE" : "DRAFT";
 
   // Server-side enforcement: a hand-built request must not mark a tab COMPLETE with missing/invalid data. Drafts are exempt.
   if (status === "COMPLETE") {
