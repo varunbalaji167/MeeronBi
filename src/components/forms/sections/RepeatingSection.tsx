@@ -22,11 +22,7 @@ export default function RepeatingSection({
   readOnly,
 }: Props) {
   if (section.transposed) {
-    // Transposed layout: one column per entry (G1, G2, ...), one row per
-    // field. `minCount` columns are always shown even with no data yet (G1
-    // is mandatory/default per the source spec — see types.ts); further
-    // columns are added via "Add Gravida" up to `maxCount`, and existing
-    // data past `minCount` is always shown regardless of the cap.
+    // Transposed layout: one column per entry, one row per field.
     const minCount = section.minCount ?? 1;
     const maxCount = section.maxCount;
     const displayCount = Math.max(minCount, rows.length);

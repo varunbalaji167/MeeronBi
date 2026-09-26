@@ -1,12 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { computeRobsonGroup } from "./robson";
 
-// Each case below is a real Robson group definition (WHO Ten-Group
-// Classification System), not an arbitrary input combination — read
-// through these and you have the actual clinical logic this tab
-// implements, not just "a function that returns a number".
 describe("computeRobsonGroup", () => {
-  it("returns null until all 6 questions are answered — this is what gates 'Mark Complete' for this tab", () => {
+  it("returns null until all 6 questions are answered", () => {
     expect(computeRobsonGroup({})).toBeNull();
     expect(computeRobsonGroup({ parity: "Nullipara" })).toBeNull();
   });

@@ -1,12 +1,6 @@
 import { GestationalAge, GestationalWindow, formatGestationalAge, isWithinWindow } from "@/domain/gestationalAge";
 
-/**
- * Purely informational — see domain/gestationalAge.ts for why this never
- * hides or disables the section it's attached to. Three states:
- *  - no LMP on file yet: just the recommended window ("Recommended: 11w0d – 13w6d")
- *  - LMP on file, currently inside the window: an accent "In window now" pill
- *  - LMP on file, outside the window: the window plus how far off ("now at 15w2d")
- */
+/** Informational badge showing the recommended gestational window and current status. */
 export default function GestationalWindowBadge({
   window,
   ga,

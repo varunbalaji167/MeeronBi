@@ -1,49 +1,45 @@
 import { NextResponse } from "next/server";
 import { AppError } from "./errors";
+import { log } from "./logger";
 
 /**
- * Wraps a route handler so ANY thrown error becomes a well-formed JSON
- * response instead of an empty or malformed body reaching the client.
- * Without this, an unhandled exception can produce a zero-length response,
- * and `fetch().json()` on the client throws a confusing "Unexpected end of
- * JSON input" that hides the real problem.
- *
- * Two cases, handled differently:
- *  - A known `AppError` (see server/http/errors.ts) — its own statusCode,
- *    code, message, detail, and any fieldErrors are passed straight
- *    through. This is the expected, "this specific thing went wrong" path:
- *    a guard denying access, a validation failure, a conflict with
- *    existing data.
- *  - Anything else (a genuine bug, a DB connection failure, a missing
- *    migration) — logged server-side with the real stack trace, but the
- *    client only ever sees a generic message. Never leak internals.
- *
- * Every route.ts handler in this app should be wrapped in this — see any
- * file under src/app/api for the pattern:
- *
- *   export const GET = withApiErrorHandling(async (req, ctx) => { ... });
+ * Wraps a route handler so any thrown error becomes a well-formed JSON response with a request id.
+ * Known `AppError`s pass through their statusCode/code/message/detail; anything else logs the real error and returns a generic 500.
  */
 export function withApiErrorHandling<Args extends any[]>(
   handler: (...args: Args) => Promise<Response>
 ) {
   return async (...args: Args): Promise<Response> => {
+    const requestId = crypto.randomUUID().slice(0, 8);
     try {
-      return await handler(...args);
+      const res = await handler(...args);
+      res.headers.set("x-request-id", requestId);
+      return res;
     } catch (err) {
       if (err instanceof AppError) {
+        log.warn({ requestId, code: err.code, detail: err.detail }, err.message);
         return NextResponse.json(
-          { error: err.message, code: err.code, detail: err.detail, fieldErrors: err.fieldErrors },
-          { status: err.statusCode }
+          { error: err.message, code: err.code, detail: err.detail, fieldErrors: err.fieldErrors, requestId },
+          { status: err.statusCode, headers: { "x-request-id": requestId } }
         );
       }
-      console.error("[api] Unhandled error:", err);
+      // Next.js's internal dynamic-rendering signal, not a real error — rethrow untouched.
+      if (err && typeof err === "object" && (err as { digest?: string }).digest === "DYNAMIC_SERVER_USAGE") {
+        throw err;
+      }
+      log.error({ requestId, err: err instanceof Error ? err.stack ?? err.message : String(err) }, "Unhandled API error");
+      if (process.env.SENTRY_DSN) {
+        const Sentry = require("@sentry/nextjs");
+        Sentry.captureException(err, { tags: { requestId } });
+      }
       return NextResponse.json(
         {
           error:
             "Something went wrong on the server. If this just started happening, check that all database migrations have been applied (`npx prisma migrate dev`).",
           code: "INTERNAL_ERROR",
+          requestId,
         },
-        { status: 500 }
+        { status: 500, headers: { "x-request-id": requestId } }
       );
     }
   };

@@ -17,7 +17,7 @@ describe("NAME_PATTERN", () => {
 describe("PLACE_NAME_PATTERN", () => {
   it("is more permissive than NAME_PATTERN — place names legitimately include digits and commas", () => {
     expect(PLACE_NAME_PATTERN.test("Sector 5, New Delhi")).toBe(true);
-    expect(PLACE_NAME_PATTERN.test("<script>")).toBe(false); // still not anything-goes
+    expect(PLACE_NAME_PATTERN.test("<script>")).toBe(false);
   });
 });
 
@@ -28,15 +28,15 @@ describe("RECORD_NUMBER_PATTERN (CR No./MRD)", () => {
   });
 
   it("rejects something too short to be a real record number, or one starting with a separator", () => {
-    expect(RECORD_NUMBER_PATTERN.test("AB")).toBe(false); // under 3 chars
-    expect(RECORD_NUMBER_PATTERN.test("-ABC123")).toBe(false); // can't start with a hyphen
+    expect(RECORD_NUMBER_PATTERN.test("AB")).toBe(false);
+    expect(RECORD_NUMBER_PATTERN.test("-ABC123")).toBe(false);
   });
 });
 
 describe("MANIPUR_DISTRICTS", () => {
-  it("has exactly the 16 districts from the December 2016 reorganization — a stale count would silently mis-serve real patients", () => {
+  it("has exactly the 16 districts from the December 2016 reorganization", () => {
     expect(MANIPUR_DISTRICTS).toHaveLength(16);
-    expect(new Set(MANIPUR_DISTRICTS).size).toBe(16); // no accidental duplicates
+    expect(new Set(MANIPUR_DISTRICTS).size).toBe(16);
   });
 
   it("includes the four districts the source spec's own example chart names", () => {

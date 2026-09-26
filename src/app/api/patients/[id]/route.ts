@@ -21,11 +21,7 @@ export const DELETE = withApiErrorHandling(async (_req: NextRequest, { params }:
   return NextResponse.json({ ok: true });
 });
 
-/**
- * Create/replace this patient's portal login. Body: { email, password }.
- * See server/patients/portalAccessService.ts for the "one login per
- * patient, never a duplicate email" business rule this enforces.
- */
+/** Create/replace this patient's portal login. Body: { email, password }. */
 export const POST = withApiErrorHandling(async (req: NextRequest, { params }: { params: { id: string } }) => {
   await requireAdminSessionForPatient(params.id);
 

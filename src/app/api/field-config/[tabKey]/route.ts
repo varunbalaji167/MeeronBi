@@ -5,11 +5,7 @@ import { getTabByKey } from "@/domain/tabs";
 import { withApiErrorHandling } from "@/server/http/withApiErrorHandling";
 import { NotFoundError } from "@/server/http/errors";
 
-// Admin-only: hospital-wide "which fields do we collect for this tab"
-// preference. See src/domain/fieldVisibility.ts for how this is resolved
-// against an individual record's data, and docs/ARCHITECTURE.md for the
-// feature's full design rationale.
-
+// Admin-only: facility-wide field selection preference for a tab.
 export const GET = withApiErrorHandling(async (_req: NextRequest, { params }: { params: { tabKey: string } }) => {
   const session = await requireAdminSession();
   if (!getTabByKey(params.tabKey)) throw new NotFoundError("Unknown tab.");

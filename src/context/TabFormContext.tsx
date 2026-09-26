@@ -14,19 +14,9 @@ interface ActiveFormState {
 interface TabFormContextValue {
   /** The currently-mounted editable tab form registers itself here. */
   setActiveForm: (state: ActiveFormState | null) => void;
-  /**
-   * Reactive read of the same state — e.g. PatientHeader uses this to show
-   * a name as it's being typed on the Personal tab, before it's even been
-   * saved. Unlike the internal ref used for autosave (which needs the
-   * latest value synchronously without waiting for a re-render), this is
-   * plain React state so consumers re-render when it changes.
-   */
+  /** Reactive read of the active form's state, re-rendering consumers on change. */
   activeForm: ActiveFormState | null;
-  /**
-   * Used by tab navigation instead of a plain link: if the active form has
-   * unsaved changes, save it as a draft first, then navigate. This is what
-   * makes "moving to the next tab" behave like autosave.
-   */
+  /** Saves the active form as a draft (if dirty) before navigating. */
   navigateWithAutosave: (href: string) => Promise<void>;
 }
 
@@ -40,10 +30,7 @@ const TabFormContext = createContext<TabFormContextValue>({
 
 export function TabFormProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  // A ref for navigateWithAutosave, which needs the latest value
-  // synchronously (it can fire between renders); state for everything that
-  // should visibly react to changes (e.g. the live patient name in the
-  // header).
+  // Ref for synchronous access (navigateWithAutosave); state for reactive consumers.
   const activeRef = useRef<ActiveFormState | null>(null);
   const [activeForm, setActiveFormState] = useState<ActiveFormState | null>(null);
 
@@ -59,8 +46,7 @@ export function TabFormProvider({ children }: { children: React.ReactNode }) {
         try {
           await active.saveDraft();
         } catch {
-          // saveDraft surfaces its own error toast; still let navigation
-          // proceed rather than trap the person on the page.
+          // saveDraft shows its own error toast; navigation proceeds regardless.
         }
       }
       router.push(href);

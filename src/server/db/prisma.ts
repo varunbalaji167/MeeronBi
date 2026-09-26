@@ -1,8 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 
-// Singleton pattern: in dev, Next.js hot-reloads modules, which would
-// otherwise spin up a new PrismaClient (and a new DB connection pool) on
-// every file save. Stashing it on `globalThis` survives the reload.
+// Singleton on globalThis so dev hot-reload doesn't spawn a new connection pool per save.
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
 export const prisma =

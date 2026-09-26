@@ -15,7 +15,7 @@ interface Props {
   onBlurField: (name: string) => void;
   /** null/undefined = show every field (no customization applies to this tab). */
   visibleFieldNames?: Set<string> | null;
-  /** Only passed by tabs that use `recommendedWindow` (currently Ultrasound) — see GestationalWindowBadge. */
+  /** Only passed by tabs using `recommendedWindow` (currently Ultrasound). */
   ga?: GestationalAge | null;
 }
 

@@ -16,13 +16,7 @@ interface UseTabRecordResult {
   remove: () => Promise<void>;
 }
 
-/**
- * All the network plumbing for "one tab's record for one patient" — GET on
- * mount, PUT to save, DELETE to clear — so components (TabRecordView) stay
- * focused on what to render, not how to fetch it. Throws on save/delete
- * failure rather than showing its own UI, so the caller decides how to
- * surface the error (DynamicForm uses toasts).
- */
+/** GET/PUT/DELETE plumbing for one tab's record; throws on failure so the caller handles the error. */
 export function useTabRecord(patientId: string, tabRoute: string): UseTabRecordResult {
   const router = useRouter();
   const [loading, setLoading] = useState(true);

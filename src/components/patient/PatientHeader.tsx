@@ -30,19 +30,13 @@ export default function PatientHeader({
   const [deleting, setDeleting] = useState(false);
   const { activeForm } = useTabForm();
 
-  // While the Personal tab is open and being edited, reflect the name as
-  // it's typed — not just after a save + page refresh. Falls back to the
-  // last-saved (server-provided) name on every other tab, or if the field
-  // is currently empty.
+  // Reflects the name as typed while the Personal tab is open; falls back to the saved name otherwise.
   const liveName =
     activeForm?.tabKey === "personal" && typeof activeForm.data?.fullName === "string" && activeForm.data.fullName.trim()
       ? activeForm.data.fullName
       : fullName;
 
-  // Same live-reflection mechanism as the name above: while the Personal
-  // tab is open and being edited, show the MRD as it's typed rather than
-  // only after a save + page refresh. Falls back to the last-saved MRD on
-  // every other tab, or while the field is empty.
+  // Same live-reflection as liveName, for the MRD field.
   const liveMrn =
     activeForm?.tabKey === "personal" && typeof activeForm.data?.mrn === "string" && activeForm.data.mrn.trim()
       ? activeForm.data.mrn

@@ -1,11 +1,6 @@
 import { COUNTRY_CODES, DEFAULT_COUNTRY_ISO, findCountryByIso } from "./countryCodes";
 
-/**
- * How every "phone" field type stores its value in the JSON `data` blob —
- * a country + the national number, kept separate rather than one combined
- * string so the country can be changed without re-parsing free text, and so
- * validation can apply the right length rule per number.
- */
+/** How a "phone" field stores its value: country + national number, kept separate. */
 export interface PhoneValue {
   countryIso: string; // ISO 3166-1 alpha-2, e.g. "IN", "US", "GB"
   number: string; // digits only, national number (no country code, no leading 0/+)
@@ -31,20 +26,7 @@ export function formatPhoneValue(v: PhoneValue | null | undefined): string {
   return `${country?.dialCode ?? ""} ${v.number}`.trim();
 }
 
-/**
- * Expected national-significant-number length by country (ISO 3166-1
- * alpha-2), per each country's public numbering plan. A single number means
- * a fixed length (e.g. India's mobile numbers are always 10 digits); a
- * [min, max] tuple means the plan allows a short range (fixed-line vs.
- * mobile numbers commonly differ in length within one country).
- *
- * This is intentionally more precise than one global range — "more than 10
- * digits for an Indian number" should actually be rejected, not just
- * anything under 15. Countries not listed fall back to
- * DEFAULT_PHONE_LENGTH, a conservative range covering the overwhelming
- * majority of real numbering plans; if you need a specific country's exact
- * rule added, add it here rather than loosening the default.
- */
+/** Expected national number length by ISO country code: a fixed number, or a [min, max] range. */
 const PHONE_LENGTH_BY_ISO: Record<string, number | [number, number]> = {
   AF: 9, AL: 9, DZ: 9, AR: [10, 11], AM: 8, AU: 9, AT: [10, 11], AZ: 9,
   BD: 10, BY: 9, BE: 9, BJ: 8, BT: 8, BO: 8, BA: 8, BW: 8, BR: [10, 11],
@@ -86,7 +68,7 @@ export function sanitizePhoneValue(v: PhoneValue): PhoneValue {
 }
 
 export function validatePhoneValue(v: PhoneValue | null | undefined): string | null {
-  if (!v || !v.number) return null; // emptiness is a "required" concern, not this function's job
+  if (!v || !v.number) return null;
   if (!findCountryByIso(v.countryIso)) return "Select a country for this phone number.";
 
   const digits = sanitizePhoneDigits(v.number);

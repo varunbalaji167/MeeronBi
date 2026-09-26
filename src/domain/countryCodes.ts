@@ -1,10 +1,4 @@
-// ─────────────────────────────────────────────────────────────────────────
-// ITU-T calling codes, so any hospital anywhere can record a phone number in
-// its own country's format rather than the app assuming a single country.
-// This is reference data only (no business logic) — kept in the domain
-// layer because both the UI (components/forms) and validation
-// (domain/validation.ts) need it, and neither should depend on the other.
-// ─────────────────────────────────────────────────────────────────────────
+// ITU-T calling codes so a phone number can be recorded in any country's format.
 
 export interface CountryCode {
   /** ISO 3166-1 alpha-2 code, used as the option value. */
@@ -16,8 +10,7 @@ export interface CountryCode {
 
 export const DEFAULT_COUNTRY_ISO = "IN";
 
-// Sorted by country name. Not exhaustive to the last micro-territory, but
-// covers every country likely to run a hospital deployment of this app.
+// Sorted by country name.
 export const COUNTRY_CODES: CountryCode[] = [
   { iso: "AF", name: "Afghanistan", dialCode: "+93" },
   { iso: "AL", name: "Albania", dialCode: "+355" },

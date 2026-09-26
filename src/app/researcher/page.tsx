@@ -4,12 +4,7 @@ import { LineChart } from "lucide-react";
 export const dynamic = "force-dynamic";
 
 export default async function ResearcherHomePage() {
-  // The layout already redirected anyone whose cached session role isn't
-  // RESEARCHER — this goes one step further and re-checks approval status
-  // fresh against the database (see requireResearcherSession's comment):
-  // a researcher whose access was revoked after they already had a valid
-  // session cookie should see that reflected immediately here, not only
-  // once their 30-day JWT happens to expire.
+  // Re-checks approval fresh against the database so a revoked researcher is blocked immediately.
   let approved = true;
   try {
     await requireResearcherSession();

@@ -16,12 +16,8 @@ interface NavItem {
 
 type SidebarRole = "admin" | "patient" | "researcher";
 
-// Icon components can't be passed as props from a Server Component into a
-// Client Component (they're functions under the hood, and the RSC
-// serialization boundary rejects functions) — see the layouts that render
-// this. So instead of accepting a `navItems` prop built by a server layout,
-// this component takes a plain, serializable `role` string and resolves its
-// own nav config (icons included) entirely on the client side.
+// Icon components can't cross the Server->Client boundary as props, so this
+// takes a plain `role` string and resolves nav config client-side.
 const NAV_CONFIG: Record<SidebarRole, { roleLabel: string; items: NavItem[] }> = {
   admin: {
     roleLabel: "Hospital Staff",
@@ -46,10 +42,7 @@ const NAV_CONFIG: Record<SidebarRole, { roleLabel: string; items: NavItem[] }> =
   },
 };
 
-// SUPER_ADMIN-only — reviewing researcher access requests isn't a
-// per-facility hospital-admin task, so it's added conditionally rather
-// than living in NAV_CONFIG.admin.items directly (which every ADMIN,
-// facility-scoped or not, would otherwise see).
+// SUPER_ADMIN-only nav item, added conditionally rather than in NAV_CONFIG.
 const SUPER_ADMIN_ITEM: NavItem = { href: "/admin/researchers", label: "Researcher Requests", icon: ShieldCheck };
 
 function initialsFor(email: string): string {

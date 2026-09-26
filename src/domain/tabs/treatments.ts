@@ -4,9 +4,7 @@ export const treatmentsTab: TabConfig = {
   key: "treatments",
   label: "Treatments",
   route: "treatments",
-  // No plain-section fields at all — both sections are repeating tables —
-  // so this tab has nothing for "customize fields" to toggle. See
-  // domain/fieldVisibility.ts for how that's decided.
+  // Both sections are repeating tables; nothing for "customize fields" to toggle.
   sections: [
     {
       kind: "repeating",

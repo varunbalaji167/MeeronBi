@@ -6,15 +6,7 @@ import { getTabByKey } from "@/domain/tabs";
 import { getIncompleteReasons, getFieldLevelErrors } from "@/domain/validation";
 import { NotFoundError, ValidationError } from "@/server/http/errors";
 
-/**
- * Thin HTTP adapters shared by every `/api/patients/[id]/{tab}/route.ts`
- * file — each of those 7 files is intentionally just three lines calling
- * into here (see one of them for the pattern). This is the ONE place that
- * translates "tab record CRUD" into HTTP status codes/JSON shape; the
- * actual data access lives in tabRecordRepository.ts, and access control in
- * server/auth/guards.ts. Keeping this layer thin and these three concerns
- * separate is what makes each of them individually easy to change.
- */
+/** Thin HTTP adapters shared by every `/api/patients/[id]/{tab}/route.ts`; data access lives in tabRecordRepository.ts, auth in guards.ts. */
 
 export async function handleTabGet(tabKey: string, patientId: string) {
   await assertPatientRecordAccessible(patientId);
@@ -25,10 +17,7 @@ export async function handleTabGet(tabKey: string, patientId: string) {
 }
 
 export async function handleTabSave(tabKey: string, patientId: string, req: Request) {
-  // Only staff (ADMIN) may write data — patients are read-only viewers.
-  // requireAdminSessionForPatient (not the plain requireAdminSession) also
-  // confirms this patient belongs to the admin's own facility — see
-  // server/auth/guards.ts.
+  // Only staff (ADMIN) may write; this also confirms the patient belongs to the admin's own facility.
   await requireAdminSessionForPatient(patientId);
   if (!isKnownTabKey(tabKey)) throw new NotFoundError("Unknown tab.");
 
@@ -36,11 +25,7 @@ export async function handleTabSave(tabKey: string, patientId: string, req: Requ
   const data = body?.data ?? {};
   const status = body?.status === "COMPLETE" ? "COMPLETE" : "DRAFT";
 
-  // Server-side enforcement, independent of the browser: the client runs
-  // this same check for UX (instant feedback, no round trip), but a request
-  // built by hand — bypassing the UI entirely — must not be able to mark a
-  // tab Complete with missing required fields or invalid data. Drafts are
-  // exempt by design; only the transition to COMPLETE is gated.
+  // Server-side enforcement: a hand-built request must not mark a tab COMPLETE with missing/invalid data. Drafts are exempt.
   if (status === "COMPLETE") {
     const tab = getTabByKey(tabKey)!; // isKnownTabKey already confirmed this exists
     const missing = getIncompleteReasons(tab, data);
@@ -50,15 +35,9 @@ export async function handleTabSave(tabKey: string, patientId: string, req: Requ
     }
   }
 
-  // requireAdminSessionForPatient above already confirmed this patient
-  // exists and is at the caller's facility — no need to re-check here.
   const record = await saveTabRecord(tabKey, patientId, data, status);
 
-  // The Personal tab is the single source of truth for name/MRD/phone —
-  // keep the patient-list's denormalized columns in sync every time it's
-  // saved. An MRD conflict is reported as a field-level error (same shape
-  // used above) so it shows up as red text under the MRD box, not a toast
-  // that's easy to miss.
+  // Keep the patient-list's denormalized columns in sync with the Personal tab; report an MRD conflict as a field-level error.
   let fieldErrors: Record<string, string> | undefined;
   if (tabKey === "personal") {
     const sync = await syncPatientSummaryFromPersonal(patientId, record.data);

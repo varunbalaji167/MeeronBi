@@ -1,35 +1,5 @@
-// ─────────────────────────────────────────────────────────────────────────
-// MeeronBi Antenatal Care Data Analytics — Prisma schema (MySQL)
-//
-// Design notes
-// ------------
-// The paper/prototype form has 137+ fields spread across 7 tabs (Personal,
-// History, Investigation, Ultrasound, Delivery, Robson, Treatments), several
-// of which are repeating groups (e.g. Obstetric History G1-G6, Treatment
-// visits 1-9). Rather than hard-coding ~140 individual columns (which would
-// make the schema brittle every time a field is tweaked), each tab is stored
-// as ONE row per patient with:
-//   - a flexible `data Json` column holding every field for that tab, keyed
-//     by the field config in `src/lib/formConfigs.ts` (single source of truth
-//     for both the UI and validation), and
-//   - a `status` (DRAFT | COMPLETE) so partially-filled tabs can be saved
-//     without blocking on required fields — this is the "draft support"
-//     the app needs.
-// A handful of fields that are genuinely useful to query/aggregate for the
-// public trends page (delivery mode, Robson group, admission type, baby
-// weight) are ALSO promoted to real typed columns, denormalized alongside
-// the JSON blob, so trend queries don't need to parse JSON in MySQL.
-//
-// Multi-tenancy: every Patient/User/TabFieldPreference belongs to exactly
-// one Facility (the tenant boundary). This was added before a second
-// facility ever existed on purpose — see docs/SCALING_PLAN.md §3 for why
-// retrofitting a tenant column onto live patient data later is a much
-// riskier operation than deciding it up front. The 7 tab-record tables
-// below don't carry `facilityId` directly; they're scoped transitively
-// through `patientId -> Patient.facilityId`, checked once at the access-
-// control layer (server/auth/guards.ts) rather than duplicated onto every
-// table.
-// ─────────────────────────────────────────────────────────────────────────
+// MeeronBi Antenatal Care — Prisma schema (MySQL). Each tab is one row per
+// patient with a flexible `data Json` column plus a DRAFT/COMPLETE status.
 
 generator client {
   provider = "prisma-client-js"
@@ -41,10 +11,10 @@ datasource db {
 }
 
 enum Role {
-  SUPER_ADMIN // MeeronBi dev/ops team — full access across every facility, no facility-scoping applies
-  ADMIN // hospital staff — full data entry access, scoped to their own facility
-  PATIENT // can view only their own record, read-only
-  RESEARCHER // approved external researcher — analytics-only access once APPROVED (see ResearcherProfile); never reaches per-patient tab-record endpoints, guarded by a separate code path (see server/auth/guards.ts's requireResearcherSession)
+  SUPER_ADMIN // full access across every facility
+  ADMIN // hospital staff, scoped to their own facility
+  PATIENT // read-only access to their own record
+  RESEARCHER // analytics-only access once APPROVED
 }
 
 enum ResearcherStatus {
@@ -58,25 +28,13 @@ enum RecordStatus {
   COMPLETE
 }
 
-// The tenant. Every other model below belongs to exactly one Facility —
-// this is THE foundational multi-tenancy boundary everything else in the
-// app is scoped through (see server/auth/guards.ts, and every repository
-// under server/*). Region fields are deliberately flat metadata rather
-// than a normalized Country/State table tree: a state→country rollup is a
-// GROUP BY on these two columns, not a join, and there's no evidence yet
-// of a real requirement (e.g. per-state admin accounts) that would justify
-// more structure than that. See docs/SCALING_PLAN.md §3-4 for the full
-// reasoning behind introducing this now, while there's only one facility,
-// instead of retrofitting it onto live multi-hospital data later.
+// The tenant boundary — every Patient/User/TabFieldPreference belongs to one Facility.
 model Facility {
   id          String   @id @default(cuid())
   name        String
-  // Short, stable, URL-safe identifier — e.g. used to resolve which
-  // facility an unauthenticated public page (like /public/trends) is
-  // for, since a cuid `id` isn't something you'd put in a URL/link by
-  // hand. "default" for the single-facility deployment today.
+  // Stable URL-safe identifier, e.g. for the public trends page.
   slug        String   @unique
-  stateCode   String? // free-form for now (e.g. "MN" for Manipur) — see note above on why this isn't a foreign key to a States table yet
+  stateCode   String?
   countryCode String   @default("IN") // ISO 3166-1 alpha-2
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -97,54 +55,30 @@ model User {
   createdAt    DateTime  @default(now())
   lastLoginAt  DateTime?
 
-  // Required for every role, including SUPER_ADMIN/RESEARCHER, who aren't
-  // conceptually tied to one hospital's data — this was a deliberate
-  // decision (see docs/SCALING_PLAN.md's role-model discussion) to avoid
-  // making `facilityId` nullable and touching every place that reads it as
-  // a plain string. SUPER_ADMIN/RESEARCHER are anchored to a seeded "HQ"
-  // facility (see prisma/seed.ts) purely as an administrative home; the
-  // access-control guards for those two roles (server/auth/guards.ts)
-  // bypass the facility-match check entirely rather than relying on this
-  // value for scoping the way ADMIN/PATIENT's guards do.
+  // SUPER_ADMIN/RESEARCHER are anchored to a seeded "HQ" facility as an administrative home only.
   facilityId String
   facility   Facility @relation(fields: [facilityId], references: [id])
 
-  // If role === PATIENT, this links the login to their one patient record.
+  // If role === PATIENT, links this login to their one patient record.
   patient      Patient?  @relation("PatientAccount")
 
-  // Patients this user (as staff) has created.
   createdPatients Patient[] @relation("CreatedBy")
 
-  // If role === RESEARCHER, this carries their approval status/request
-  // details — see ResearcherProfile below.
+  // If role === RESEARCHER, carries their approval status/request details.
   researcherProfile ResearcherProfile?
 
-  // Researcher requests this user (as a SUPER_ADMIN) has approved/rejected.
   reviewedResearchers ResearcherProfile[] @relation("ReviewedBy")
 
   @@index([facilityId])
   @@map("users")
 }
 
-// One per RESEARCHER-role User — the request-and-approval record a real
-// in-app "request researcher access" flow needs (see
-// server/researchers/researcherAccessService.ts). The User row itself is
-// created immediately on request (role: RESEARCHER, this profile's status:
-// PENDING) rather than only after approval, because they need to set a
-// password and have *something* to check status against when they try to
-// log in before being approved — see authOptions.ts's authorize(), which
-// blocks login (with a specific, non-generic message) for anything other
-// than APPROVED.
+// One per RESEARCHER-role User — the request-and-approval record for the researcher-access flow.
 model ResearcherProfile {
   userId String @id
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   status ResearcherStatus @default(PENDING)
-  // Why they want access — shown to the SUPER_ADMIN reviewing the request.
-  // Deliberately free text with a generous cap (this is a one-time
-  // request read by a human reviewer, not analytics-eligible structured
-  // data — none of the input-hardening/select-vs-text reasoning elsewhere
-  // in this app applies here).
   institution String
   purpose     String @db.Text
 
@@ -159,10 +93,7 @@ model ResearcherProfile {
 
 model Patient {
   id          String   @id @default(cuid())
-  // Unique PER FACILITY, not globally — two different hospitals can
-  // legitimately both have an "MRD-001". A bare `@unique` here (as this
-  // was before facilities existed) would incorrectly reject that across
-  // tenants.
+  // Unique per facility, not globally.
   mrn         String?  // "4. CR No./MRD"
   fullName    String // "1. Full Name"
   surname     String? // "2. Surname"
@@ -200,7 +131,7 @@ model PersonalInfo {
   patientId String       @unique
   patient   Patient      @relation(fields: [patientId], references: [id], onDelete: Cascade)
   status    RecordStatus @default(DRAFT)
-  data      Json // all fields 1-24 keyed by formConfigs "personal"
+  data      Json
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
 
@@ -253,7 +184,7 @@ model Delivery {
   patient       Patient      @relation(fields: [patientId], references: [id], onDelete: Cascade)
   status        RecordStatus @default(DRAFT)
 
-  // Denormalized for public trend aggregation:
+  // Denormalized for public trend aggregation.
   admissionType String? // "Emergency" | "Routine"
   deliveryMode  String? // "Vaginal" | "Caesarean" | "Instrumental"
   babyWeightKg  Float?
@@ -272,7 +203,7 @@ model RobsonClassification {
   patient     Patient      @relation(fields: [patientId], references: [id], onDelete: Cascade)
   status      RecordStatus @default(DRAFT)
 
-  // Denormalized computed result for trend aggregation:
+  // Denormalized for trend aggregation.
   groupNumber Int? // 1-10
 
   data        Json
@@ -295,16 +226,7 @@ model Treatment {
   @@map("treatments")
 }
 
-// Per-tab, per-FACILITY "which fields does this hospital actually want to
-// collect" — see src/domain/fieldVisibility.ts for the resolution logic.
-// One row per (facility, tab); `enabledFieldNames` is a JSON string array.
-// Deliberately not per-patient (a hospital-wide data-collection standard,
-// not a per-record choice) — but IS per-facility, since two different
-// hospitals should be free to customize their own field lists
-// independently. This is also the mechanism a future per-region/per-country
-// field-set difference would use (see docs/SCALING_PLAN.md §4) — it's data
-// scoped by facility already, not a code fork, once a facility's region is
-// known.
+// Per-tab, per-facility "which fields does this hospital collect" — see src/domain/fieldVisibility.ts.
 model TabFieldPreference {
   facilityId        String
   facility          Facility @relation(fields: [facilityId], references: [id])
@@ -315,4 +237,3 @@ model TabFieldPreference {
   @@id([facilityId, tabKey])
   @@map("tab_field_preferences")
 }
-

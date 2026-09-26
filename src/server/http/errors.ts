@@ -1,33 +1,5 @@
-// ─────────────────────────────────────────────────────────────────────────
-// A small typed-error hierarchy for the server layer, instead of throwing
-// generic `Error("some message")` or returning ad-hoc `{ ok, status,
-// message }` shapes from every function that can fail differently.
-//
-// Why this matters: a caller (a route handler, or a guard's caller) can
-// `catch` and `instanceof`-check for a SPECIFIC failure mode — "was this a
-// permissions problem? a not-found? a conflict with existing data?" —
-// instead of pattern-matching on a string message, which breaks silently
-// the moment someone rewords the message. `withApiErrorHandling`
-// (server/http/withApiErrorHandling.ts) is the ONE place that converts
-// these into HTTP responses, so every route gets consistent status codes
-// and JSON shape for free just by throwing the right error type.
-//
-// Two dimensions, not one: `code` is the coarse HTTP-status-aligned
-// category (is this a 401? a 404? a 409?) — fine for "should the client
-// retry" / "should it redirect to login" branching, but not specific
-// enough once there are dozens of distinct business rules across a
-// growing field registry and multiple regions. `detail` is an optional,
-// namespaced, stable string for the SPECIFIC reason within that category
-// — "<DOMAIN>.<SPECIFIC_REASON>", e.g. "PATIENT.MRD_DUPLICATE" or
-// "ANALYTICS.UNKNOWN_FIELD". Add a `detail` once a caller (or a future
-// i18n message catalog mapping code -> localized text) genuinely needs to
-// branch on/localize THIS specific failure, not just "was it a 404" —
-// most errors are fine identified by `code` + `message` alone, so don't
-// invent a `detail` for every error out of habit. Each domain module that
-// needs one defines its own constants near where it throws (see
-// server/analytics/errors.ts for the first example) rather than
-// centralizing every possible code into one giant enum here.
-// ─────────────────────────────────────────────────────────────────────────
+// Typed error hierarchy for the server layer, converted to HTTP responses by withApiErrorHandling.
+// `code` is the coarse HTTP-status category; `detail` is an optional namespaced string ("DOMAIN.REASON") for callers that need to branch on a specific failure.
 
 export type ErrorCode =
   | "UNAUTHORIZED"
@@ -35,6 +7,7 @@ export type ErrorCode =
   | "NOT_FOUND"
   | "VALIDATION_ERROR"
   | "CONFLICT"
+  | "RATE_LIMITED"
   | "INTERNAL_ERROR";
 
 export class AppError extends Error {
@@ -52,9 +25,7 @@ export class AppError extends Error {
     this.code = code;
     this.fieldErrors = fieldErrors;
     this.detail = detail;
-    // Restores the correct prototype chain when compiled down (TS/ES5
-    // interop quirk with extending built-ins like Error) — without this,
-    // `instanceof AppError` can fail after transpilation.
+    // Restores the prototype chain so `instanceof AppError` works after transpilation.
     Object.setPrototypeOf(this, new.target.prototype);
   }
 }
@@ -86,5 +57,11 @@ export class ValidationError extends AppError {
 export class ConflictError extends AppError {
   constructor(message: string, fieldErrors?: Record<string, string>, detail?: string) {
     super(message, 409, "CONFLICT", fieldErrors, detail);
+  }
+}
+
+export class RateLimitError extends AppError {
+  constructor(message = "Too many requests — please slow down and try again shortly.", detail?: string) {
+    super(message, 429, "RATE_LIMITED", undefined, detail);
   }
 }

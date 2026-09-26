@@ -16,12 +16,7 @@ import { friendlyErrorMessage } from "@/lib/apiClient";
 import { SlidersHorizontal } from "lucide-react";
 
 interface Props {
-  /**
-   * Pass the tab's string key (e.g. "robson"), not the config object
-   * itself. The pages that render this are server components, and some tab
-   * configs carry functions (Robson's classifier) that can't cross the
-   * server→client prop boundary — a plain string key can.
-   */
+  /** Tab's string key (e.g. "robson"), not the config object — configs can carry functions that can't cross the server-client boundary. */
   tabKey: string;
   patientId: string;
   readOnly?: boolean;
@@ -37,12 +32,7 @@ export default function TabRecordView({ tabKey, patientId, readOnly }: Props) {
   const { activeForm } = useTabForm();
   const customizerTitleId = useId();
 
-  // Only fetched for the Ultrasound tab, whose `recommendedWindow` badges
-  // (see domain/tabs/ultrasound.ts) need the Personal tab's LMP to compute
-  // gestational age — a genuinely cross-tab read, the first one in this
-  // app. Like field-visibility preferences, this is a nice-to-have: if it
-  // fails, the ultrasound sections just render without their timing
-  // badges rather than blocking the page.
+  // Only fetched for Ultrasound, to compute gestational age from Personal's LMP; failure is non-blocking.
   const [personalLmp, setPersonalLmp] = useState<string | null>(null);
   useEffect(() => {
     if (tabKey !== "ultrasound") return;
@@ -53,7 +43,7 @@ export default function TabRecordView({ tabKey, patientId, readOnly }: Props) {
         if (!cancelled) setPersonalLmp(json?.data?.lmp ?? null);
       })
       .catch(() => {
-        /* nice-to-have — see comment above */
+        /* non-blocking */
       });
     return () => {
       cancelled = true;
@@ -70,10 +60,7 @@ export default function TabRecordView({ tabKey, patientId, readOnly }: Props) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [showCustomizer]);
 
-  // Field-visibility preferences are a nice-to-have, not core to viewing/
-  // editing the record — if fetching them fails, fall back to core-field
-  // defaults (already what `resolveVisibleFieldNames` does with a null
-  // selection) and just let the admin know, rather than blocking the page.
+  // If fetching field-visibility preferences fails, fall back to defaults and notify.
   useEffect(() => {
     if (fieldVisibility.loadError) {
       showToast(fieldVisibility.loadError, "error");
@@ -81,15 +68,7 @@ export default function TabRecordView({ tabKey, patientId, readOnly }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fieldVisibility.loadError]);
 
-  // These are two genuinely different questions:
-  //  - "what should the STAFF editing form show?" → strictly the hospital's
-  //    configuration (resolveVisibleFieldNames). Unchecking a field in the
-  //    customizer hides it here, even if it already has data.
-  //  - "what should the PATIENT'S read-only view show?" → whatever fields
-  //    actually have data, regardless of the hospital's current
-  //    configuration (getFieldsWithData) — their own record shouldn't
-  //    appear to lose history just because staff later reconfigured what's
-  //    collected going forward.
+  // Staff editing view uses the hospital's field configuration; patient read-only view shows whatever has data.
   const visibleFieldNames = useMemo(() => {
     if (!tab) return null;
     if (readOnly) return getFieldsWithData(tab, record.data);
@@ -101,28 +80,19 @@ export default function TabRecordView({ tabKey, patientId, readOnly }: Props) {
 
   if (!tab) return <ErrorBanner>Unknown tab &ldquo;{tabKey}&rdquo;.</ErrorBanner>;
 
-  // A skeleton shaped like the real form, not a spinner: app/**/loading.tsx
-  // already shows a matching skeleton while the server layout resolves, and
-  // handing off to a spinner here for this client-side fetch produced a
-  // skeleton → spinner → data flicker. Using the same skeleton shape for
-  // both moments reads as one continuous load instead.
+  // Matches the server-render skeleton shape to avoid a skeleton-to-spinner flicker.
   if (record.loading || (canCustomize && fieldVisibility.loading)) {
     return <FormSkeleton />;
   }
   if (record.loadError) return <ErrorBanner>{record.loadError}</ErrorBanner>;
 
-  // Reads the live, currently-being-edited Robson answers (via the same
-  // TabFormContext mechanism the patient header's live name uses) instead
-  // of the stale snapshot from the initial page load — so the classification
-  // result updates the instant all 6 questions are answered, not only after
-  // a save completes and the page is revisited.
+  // Reads the live, currently-edited Robson answers so the result updates before saving.
   const robsonResult =
     tab.key === "robson"
       ? computeRobsonGroup(activeForm?.tabKey === "robson" ? activeForm.data : record.data)
       : null;
 
-  // Same live-read pattern as Robson above, for the Delivery tab's
-  // term/premature/late classification (see classifyDeliveryTiming).
+  // Same live-read pattern as Robson, for Delivery's term/premature/late classification.
   const deliveryTiming =
     tab.key === "delivery"
       ? classifyDeliveryTiming(

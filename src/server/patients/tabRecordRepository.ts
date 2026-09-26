@@ -4,12 +4,7 @@ import { sanitizeTabData } from "@/domain/validation";
 
 export type TabRecordStatus = "DRAFT" | "COMPLETE";
 
-/**
- * Maps a tab's string key (as used in URLs and the domain config) to its
- * Prisma model delegate. This is the ONE place that needs to change if a
- * tab's underlying table is ever renamed — everything else (API routes,
- * components) only ever refers to tabs by key.
- */
+/** Maps a tab's string key to its Prisma model delegate; the one place to update if a tab's table is renamed. */
 const TAB_MODEL_MAP: Record<string, keyof typeof prisma> = {
   personal: "personalInfo",
   history: "obstetricHistory",
@@ -27,8 +22,7 @@ export function isKnownTabKey(tabKey: string): boolean {
 function getDelegate(tabKey: string) {
   const modelKey = TAB_MODEL_MAP[tabKey];
   if (!modelKey) return null;
-  
-  // Cast prisma safely without triggering missing rule errors
+
   const client = prisma as unknown as Record<string, {
     findUnique: (args: unknown) => Promise<any>;
     upsert: (args: unknown) => Promise<any>;
@@ -38,12 +32,7 @@ function getDelegate(tabKey: string) {
   return client[modelKey as string] ?? null;
 }
 
-/**
- * A few tabs promote specific fields out of the JSON blob into real typed
- * columns purely so the public trends page can run cheap SQL aggregations
- * (see server/trends/trendsRepository.ts) instead of parsing JSON in MySQL.
- * Computed at write time so the two are always in sync.
- */
+/** Promotes a few fields from the JSON blob into typed columns so public trends can run cheap SQL aggregations. */
 function deriveExtraColumns(tabKey: string, data: Record<string, any>) {
   if (tabKey === "delivery") {
     return {
@@ -85,9 +74,7 @@ export async function saveTabRecord(
   const delegate = getDelegate(tabKey);
   if (!delegate) throw new Error(`Unknown tab "${tabKey}"`);
 
-  // Defense in depth: normalize server-side regardless of what the client
-  // sent — never trust client-side sanitization alone (see
-  // domain/validation.ts's sanitizeTabData for why).
+  // Defense in depth: always normalize server-side, never trust client-side sanitization alone.
   const tab = getTabByKey(tabKey);
   const cleanData = tab ? sanitizeTabData(tab, data) : data;
 

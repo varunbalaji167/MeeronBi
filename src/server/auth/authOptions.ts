@@ -2,15 +2,24 @@ import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/server/db/prisma";
+import { consumeToken } from "@/server/http/rateLimit";
+
+const LOGIN_RATE_LIMIT = { limit: 5, windowMs: 60_000 };
+
+/** Rate-limits login attempts directly via `consumeToken` (NextAuth's authorize isn't wrapped by withRateLimit). */
+function rateLimitLogin(headers: Record<string, any> | undefined): void {
+  const forwardedFor: string | undefined = headers?.["x-forwarded-for"];
+  const ip = forwardedFor?.split(",")[0]?.trim() || headers?.["x-real-ip"] || "unknown";
+  const allowed = consumeToken(`auth.login:${ip}`, LOGIN_RATE_LIMIT.limit, LOGIN_RATE_LIMIT.windowMs);
+  if (!allowed) {
+    throw new Error("Too many sign-in attempts — please wait a minute and try again.");
+  }
+}
 
 export const authOptions: NextAuthOptions = {
   session: {
     strategy: "jwt",
-    // Keep people signed in for 30 days so normal navigation across the app
-    // never has to re-authenticate — the JWT cookie itself carries role,
-    // patientId and facilityId, so every server component/API route can
-    // trust it directly (see server/auth/guards.ts) without a database
-    // round trip per request.
+    // JWT carries role, patientId and facilityId, so routes trust it without a DB round trip.
     maxAge: 30 * 24 * 60 * 60,
   },
   jwt: {
@@ -26,7 +35,8 @@ export const authOptions: NextAuthOptions = {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
+        rateLimitLogin(req?.headers);
         if (!credentials?.email || !credentials?.password) return null;
 
         const user = await prisma.user.findUnique({
@@ -38,17 +48,7 @@ export const authOptions: NextAuthOptions = {
         const valid = await bcrypt.compare(credentials.password, user.passwordHash);
         if (!valid) return null;
 
-        // A RESEARCHER account exists as soon as access is requested (see
-        // server/researchers/researcherAccessService.ts) — the password
-        // check above can succeed for someone genuinely still awaiting
-        // review. Block sign-in here with a SPECIFIC message rather than
-        // letting them through with a role the rest of the app isn't ready
-        // to treat as authorized yet. Thrown here (not returned as null),
-        // since NextAuth's credentials provider surfaces a thrown Error's
-        // message back to the client via `signIn(...).error` — a plain
-        // `return null` always collapses to the generic "CredentialsSignin"
-        // string, which is what the login page falls back to when it sees
-        // that value (see app/login/page.tsx).
+        // Block sign-in for researchers not yet approved; thrown (not null) so the specific message reaches the client.
         if (user.role === "RESEARCHER") {
           if (user.researcherProfile?.status === "PENDING") {
             throw new Error("Your researcher access request is still pending approval — you'll be notified once it's reviewed.");

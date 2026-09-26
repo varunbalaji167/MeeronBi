@@ -1,6 +1,4 @@
-// Re-exports the full public surface of the domain layer. Prefer importing
-// from "@/domain" over reaching into "@/domain/tabs", "@/domain/phone", etc.
-// directly, unless you specifically need a submodule not re-exported here.
+// Re-exports the domain layer's public surface; prefer importing from "@/domain".
 export * from "./tabs";
 export * from "./validation";
 export * from "./fieldVisibility";

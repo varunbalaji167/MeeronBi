@@ -2,18 +2,8 @@ import { prisma } from "@/server/db/prisma";
 import { getDefaultFacility } from "@/server/facilities/facilityRepository";
 
 /**
- * Backs the public, unauthenticated /public/trends page. Every query here
- * returns counts/averages only — NEVER individual patient rows — which is
- * what makes it safe to expose without a login. If you add a new trend,
- * keep that invariant: aggregate only, no patient-identifying fields.
- *
- * Facility-scoped: there's no session here to read a facilityId from (this
- * route is deliberately unauthenticated), so this resolves "the" facility
- * via getDefaultFacility() — see that function's comment for why this is a
- * placeholder for the current single-facility deployment specifically, and
- * what changes once a second facility exists. Returns all-zero/empty trends
- * (not an error) if no facility has been seeded yet, since "nothing to show
- * yet" is a normal state for this page, not a failure.
+ * Backs the public, unauthenticated /public/trends page. Every query returns counts/averages only — never individual patient rows.
+ * Resolves the facility via getDefaultFacility(); returns all-zero trends (not an error) if none is seeded yet.
  */
 export async function getPublicTrends() {
   const facility = await getDefaultFacility();

@@ -1,7 +1,4 @@
-// Barrel export — every other layer (components, server, API routes) should
-// import tab configs from "@/domain/tabs", never reach into an individual
-// file like "@/domain/tabs/personal" directly. That keeps this index the
-// single place that defines "what tabs exist and in what order."
+// Barrel export — import tab configs from "@/domain/tabs", not individual files.
 
 import { TabConfig } from "./types";
 import { personalTab } from "./personal";

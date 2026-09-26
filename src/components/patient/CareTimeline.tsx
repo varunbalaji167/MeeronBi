@@ -21,11 +21,7 @@ interface Props {
   activeKey?: string;
   /** Render each stage as a link to `hrefBase/{route}`. */
   hrefBase?: string;
-  /**
-   * If provided alongside hrefBase, clicking a stage calls this with the
-   * full href instead of using a plain link — used to autosave the current
-   * tab as a draft before navigating away from it.
-   */
+  /** If set alongside hrefBase, clicking a stage calls this instead of navigating directly. */
   onNavigate?: (href: string) => void;
   /** Alternative to hrefBase: handle stage selection without navigation. */
   onSelectKey?: (key: string) => void;

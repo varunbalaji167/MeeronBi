@@ -60,42 +60,22 @@ export interface CreatePatientInput {
   facilityId: string;
 }
 
-/**
- * A patient is created with ONLY a name. MRD and contact number are
- * deliberately not asked here — they're collected exactly once, in the
- * Personal tab, and synced back onto this row by
- * `syncPatientSummaryFromPersonal()` below whenever that tab is saved. This
- * used to ask for name/MRD/phone again at creation time, which meant
- * editing them later (in the Personal tab) silently didn't update what the
- * patient list showed. See docs/ARCHITECTURE.md for the full rationale.
- */
+/** Creates a patient with only a name; MRD/contact are collected in the Personal tab and synced back by `syncPatientSummaryFromPersonal`. */
 export async function createPatient({ fullName, createdById, facilityId }: CreatePatientInput) {
   return prisma.patient.create({
     data: {
       fullName,
       createdById,
       facilityId,
-      // Immediately create an (empty) draft Personal record so the tab
-      // shows a "Draft" badge right away instead of "—".
+      // Create an empty draft Personal record so the tab shows "Draft" right away.
       personal: { create: { data: { fullName }, status: "DRAFT" } },
     },
   });
 }
 
 /**
- * Keeps the denormalized Patient.fullName/mrn/contactNo columns (used only
- * for the patient list's display + search) in sync with whatever was just
- * saved in the Personal tab, which is the single source of truth for this
- * data. Called after every Personal tab save — see
- * server/patients/tabRecordRouteHandlers.ts.
- *
- * MRD has a uniqueness constraint scoped per facility (two different
- * hospitals may both use "MRD-001" — see the `@@unique([facilityId, mrn])`
- * on Patient in schema.prisma); if two patients AT THE SAME FACILITY end up
- * with the same MRD, the *rest* of the sync (name, phone) still succeeds —
- * only the MRD column is left as-is, and the caller is told so it can warn
- * the person saving, rather than the whole save failing over a
- * display-only field.
+ * Syncs the denormalized Patient.fullName/mrn/contactNo columns from the Personal tab (the source of truth), called after every save.
+ * MRD is unique per facility; on a conflict, name/phone still sync and the caller is told to warn the user rather than failing the whole save.
  */
 export async function syncPatientSummaryFromPersonal(
   patientId: string,
@@ -136,14 +116,7 @@ export async function getPatientById(id: string, facilityId: string) {
   });
 }
 
-/**
- * `facilityId` is optional specifically for the SUPER_ADMIN case — that
- * role's own facilityId is an administrative home (a seeded "HQ"
- * facility), not a filter that should ever apply to which PATIENT they
- * can look up (see server/auth/guards.ts's module comment). Only omit it
- * when the caller has already verified access another way (a SUPER_ADMIN
- * session) — every other caller must pass the real facility filter.
- */
+/** `facilityId` is optional only for SUPER_ADMIN callers that already verified access another way; everyone else must pass it. */
 export async function getPatientHeaderInfo(id: string, facilityId?: string) {
   return prisma.patient.findFirst({
     where: facilityId ? { id, facilityId } : { id },
@@ -159,19 +132,8 @@ export async function getPatientHeaderInfo(id: string, facilityId?: string) {
 }
 
 /**
- * Deletes a patient and everything attached to them: all 7 tab records
- * (cascade-deleted by the database — see the `onDelete: Cascade` on each
- * tab model in schema.prisma), and their portal login if they have one.
- * The login has to be cleaned up explicitly here rather than via a cascade
- * rule, since the foreign key points the other way (Patient -> User); the
- * Patient row is deleted first so nothing still references the User row
- * before it's removed.
- *
- * Callers must already have confirmed `id` belongs to the caller's facility
- * (via `requireAdminSessionForPatient` — see server/auth/guards.ts) before
- * calling this; it doesn't re-check, since `deleteMany` scoped by facility
- * would otherwise silently no-op on a cross-facility id instead of the
- * caller getting a clear NotFoundError earlier.
+ * Deletes a patient (tab records cascade via the DB) and their portal login, if any, deleted explicitly since the FK points the other way.
+ * Caller must already have confirmed `id` belongs to their facility (via `requireAdminSessionForPatient`) — not re-checked here.
  */
 export async function deletePatient(id: string) {
   const patient = await prisma.patient.findUnique({ where: { id }, select: { userId: true } });

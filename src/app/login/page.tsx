@@ -60,10 +60,7 @@ function LoginForm() {
 
   useEffect(() => {
     if (!isAuthenticated) return;
-    // Only toast when this page itself just completed a sign-in (i.e. the
-    // person submitted the form and we're now authenticated) — not when
-    // landing here already signed in, which redirects immediately without
-    // this having been "an action that just happened."
+    // Only toast if this submit just completed the sign-in, not on an already-authenticated landing.
     if (submitting) showToast("Signed in successfully.", "success");
     router.replace(
       role === "ADMIN" || role === "SUPER_ADMIN" ? "/admin" : role === "PATIENT" ? "/patient" : role === "RESEARCHER" ? "/researcher" : "/"
@@ -80,20 +77,12 @@ function LoginForm() {
       const res = await signIn("credentials", { email, password, redirect: false });
       if (res?.error) {
         setSubmitting(false);
-        // NextAuth collapses a bare `return null` from authorize() into the
-        // generic string "CredentialsSignin" — anything else is a message
-        // we deliberately threw ourselves (see authOptions.ts's authorize:
-        // a pending/rejected researcher gets a specific reason, not just
-        // "wrong password"), so show it as-is rather than overwriting it
-        // with the generic mismatch text.
+        // "CredentialsSignin" is NextAuth's generic error; anything else is a specific message we threw.
         setError(res.error === "CredentialsSignin" ? "That email and password don't match our records." : res.error);
         return;
       }
-      // Leave `submitting` true — the effect above redirects once
-      // useSession() picks up the new cookie.
+      // Leave `submitting` true; the effect above redirects once useSession() picks up the cookie.
     } catch {
-      // signIn() itself rejecting (rather than resolving with res.error)
-      // means the request never reached the server at all.
       setSubmitting(false);
       setError("Could not reach the server. Check your connection and try again.");
     }

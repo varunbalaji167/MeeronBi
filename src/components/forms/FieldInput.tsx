@@ -27,11 +27,7 @@ interface Props {
 const ICON_MAP = { phone: Phone, email: Mail, location: MapPin, user: User };
 
 export default function FieldInput({ field, value, onChange, onBlur, error, disabled, compact }: Props) {
-  // Always called (rules of hooks) even though only the `allowOther` select
-  // branch below uses it — tracks "the person clicked Other and is mid-way
-  // through typing a custom value" independently of `value` itself, since
-  // once they've cleared the box to start typing, `value` alone can't tell
-  // "empty because Other, about to type" apart from "empty, not started".
+  // Tracks whether the person picked "Other" and is typing a custom value.
   const [otherMode, setOtherMode] = useState(false);
 
   const Icon = field.icon ? ICON_MAP[field.icon] : null;
@@ -61,12 +57,7 @@ export default function FieldInput({ field, value, onChange, onBlur, error, disa
   );
 
   switch (field.type) {
-    // Composite country-code + national-number control. Digits are
-    // stripped live as the person types (not just validated after the
-    // fact), and the number portion is hard-capped in the DOM — both are
-    // enforced here, in the browser, before anything is ever sent to the
-    // server, so an over-length or non-numeric phone number literally
-    // cannot be entered in the first place.
+    // Country-code + national-number control; digits are stripped and length-capped live.
     case "phone": {
       const phoneValue: PhoneValue = isPhoneValue(value) ? value : emptyPhoneValue();
       const { min, max } = getPhoneLengthRange(phoneValue.countryIso);
@@ -79,9 +70,7 @@ export default function FieldInput({ field, value, onChange, onBlur, error, disa
             className="input-field w-[5.5rem] shrink-0 !pl-2 !pr-1 text-xs"
             value={phoneValue.countryIso}
             onChange={(e) => {
-              // Re-clamp the existing digits to the newly selected
-              // country's max length too, so switching country never
-              // leaves an over-length number sitting in the field.
+              // Re-clamp digits to the new country's max length.
               const next = sanitizePhoneValue({ ...phoneValue, countryIso: e.target.value });
               onChange(next);
             }}
@@ -138,9 +127,7 @@ export default function FieldInput({ field, value, onChange, onBlur, error, disa
         );
       }
 
-      // A value that's set but isn't one of the listed options can only be
-      // a previously-saved "Other" entry — treat it the same as the person
-      // having just picked "Other" this session.
+      // A saved value not in the options list is treated as an "Other" entry.
       const isOtherValue = typeof value === "string" && value !== "" && !field.options?.includes(value);
       const showOtherBox = otherMode || isOtherValue;
 
@@ -280,11 +267,7 @@ export default function FieldInput({ field, value, onChange, onBlur, error, disa
         <input
           {...commonProps}
           type="text"
-          // Native `pattern` is supplementary DOM-level hinting (mobile
-          // keyboards, browser-native validation UI) — the actual
-          // enforcement a person sees is the onBlur check that produces
-          // `error` above, since a bare `pattern` mismatch gives no visible
-          // feedback of its own until form submission.
+          // Supplementary hint only; real validation is the onBlur check producing `error`.
           pattern={field.validation?.pattern?.source}
           value={value ?? ""}
           onChange={(e) => onChange(e.target.value)}

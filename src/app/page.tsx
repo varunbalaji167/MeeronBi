@@ -12,11 +12,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-// Explicit, not just inferred: nothing on this page reads a session or any
-// other per-request data, so it can be fully static — generated once at
-// build time and served from cache, not re-rendered per visitor. Compare
-// with app/admin/layout.tsx / app/patient/layout.tsx, which explicitly
-// force dynamic rendering for the opposite reason.
+// No session or per-request data read here, so this page can be fully static.
 export const dynamic = "force-static";
 
 const team: { role: string; body: string; icon: LucideIcon }[] = [

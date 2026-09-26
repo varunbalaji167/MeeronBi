@@ -1,22 +1,5 @@
-// ─────────────────────────────────────────────────────────────────────────
-// Namespaced `detail` codes for Analytics-specific failures — see
-// server/http/errors.ts's module comment for the `code` vs `detail`
-// convention this follows. Defined here, not in the shared errors.ts,
-// because each domain owns its own detail-code vocabulary rather than
-// everything piling into one giant enum. This file has no aggregation
-// logic in it (that doesn't exist yet — see docs/ANALYTICS_PLAN.md) — it's
-// just the error vocabulary, ready for whenever field-resolution/
-// aggregation code gets written against it.
-//
-// Every one of these maps to a REQUEST-shape problem (something wrong with
-// what was asked for) — not a property of the result. "Not enough data to
-// chart" and "this bucket got suppressed" are NOT errors: they're normal,
-// expected outcomes with their own place in the result's shape (see
-// domain/analytics/disclosureControl.ts's meetsMinimumSampleSize, and the
-// `suppressed` flag on CategoricalBreakdown/CrossTabCell in
-// domain/analytics/types.ts). Throwing for those would make a completely
-// ordinary "this cohort is too small yet" outcome look like a bug.
-// ─────────────────────────────────────────────────────────────────────────
+// Namespaced `detail` codes for Analytics-specific request errors.
+// Suppressed/low-sample results are not errors and aren't represented here.
 
 import { ValidationError } from "@/server/http/errors";
 
@@ -43,7 +26,7 @@ export function sameFieldAsFilterError(): ValidationError {
   );
 }
 
-/** e.g. someone tries to analyze a `text`/`textarea` field, which domain/analytics's field registry never lists as analyzable in the first place — this is the defense-in-depth check for a hand-built request, not something the picker UI should ever be able to trigger. */
+/** Field isn't analyzable (e.g. free text) — defense-in-depth for a hand-built request. */
 export function fieldNotAnalyzableError(ref: string): ValidationError {
   return new ValidationError(
     `"${ref}" can't be used for analytics (it's free text, or excluded from the field picker).`,

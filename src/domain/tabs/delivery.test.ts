@@ -1,9 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { classifyDeliveryTiming } from "./delivery";
 
-// Per the source spec: "Normal delivery is 37-40 weeks, premature delivery
-// before 37 and late delivery after 40 weeks" — see docs/ARCHITECTURE.md's
-// cross-check notes on the Delivery tab.
 describe("classifyDeliveryTiming", () => {
   it("classifies under 37 weeks as premature", () => {
     expect(classifyDeliveryTiming(36)).toEqual({ label: "Premature delivery (before 37 weeks)", tone: "warn" });
@@ -19,11 +16,11 @@ describe("classifyDeliveryTiming", () => {
     expect(classifyDeliveryTiming(41)).toEqual({ label: "Late delivery (after 40 weeks)", tone: "warn" });
   });
 
-  it("accepts a numeric string (the form field can hand this either shape) the same way as a number", () => {
+  it("accepts a numeric string the same way as a number", () => {
     expect(classifyDeliveryTiming("39")).toEqual(classifyDeliveryTiming(39));
   });
 
-  it("returns null — not a guess — for anything that isn't a usable number yet (field not filled in)", () => {
+  it("returns null for anything that isn't a usable number yet", () => {
     expect(classifyDeliveryTiming(null)).toBeNull();
     expect(classifyDeliveryTiming(undefined)).toBeNull();
     expect(classifyDeliveryTiming("")).toBeNull();

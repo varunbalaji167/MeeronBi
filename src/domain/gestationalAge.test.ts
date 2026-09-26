@@ -3,15 +3,7 @@ import { computeGestationalAge, formatGestationalAge, isWithinWindow, weeksWindo
 
 const DAY_MS = 86_400_000;
 
-/**
- * Adds whole days using raw millisecond math rather than Date's
- * getDate()/setDate() (which operate in the machine's LOCAL timezone and
- * can silently land on the wrong calendar day near a DST/timezone
- * boundary). computeGestationalAge itself does the same millisecond-based
- * subtraction internally, so this keeps the test's arithmetic exactly
- * aligned with what's actually being tested — see the function's own
- * `Math.floor((asOf.getTime() - lmpDate.getTime()) / 86_400_000)`.
- */
+/** Adds whole days via millisecond math, matching computeGestationalAge's own arithmetic. */
 function addDays(date: Date, days: number): Date {
   return new Date(date.getTime() + days * DAY_MS);
 }
@@ -56,7 +48,6 @@ describe("formatGestationalAge", () => {
 
 describe("weeksWindow", () => {
   it("converts a weeks+days range into the totalDays range isWithinWindow compares against", () => {
-    // The NT scan's real recommended window, per domain/tabs/ultrasound.ts.
     expect(weeksWindow(11, 0, 13, 6, "11w0d – 13w6d")).toEqual({ minDays: 77, maxDays: 97, label: "11w0d – 13w6d" });
   });
 });
@@ -75,7 +66,7 @@ describe("isWithinWindow", () => {
     expect(isWithinWindow(justOutside, ntWindow)).toBe(false);
   });
 
-  it("with an array of windows, is true if ANY of them match — e.g. the Uterine Artery Doppler's two separate recommended windows", () => {
+  it("with an array of windows, is true if any of them match", () => {
     const dopplerWindows = [weeksWindow(11, 0, 14, 0, "first window"), weeksWindow(20, 0, 24, 0, "second window")];
     const inFirstWindow = computeGestationalAge("2024-01-01", addDays(new Date("2024-01-01"), 12 * 7));
     const inTheGapBetween = computeGestationalAge("2024-01-01", addDays(new Date("2024-01-01"), 17 * 7));

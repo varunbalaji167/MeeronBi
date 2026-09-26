@@ -35,9 +35,7 @@ export const historyTab: TabConfig = {
           placeholder: "G1P0000",
           core: true,
           maxLength: 12,
-          // Standard obstetric shorthand: G<gravida>P<para><term><preterm><abortion><living>,
-          // e.g. "G2P1001" — a structured code, not free text, so it gets
-          // pattern validation rather than being left wide open.
+          // Standard obstetric shorthand: G<gravida>P<para><term><preterm><abortion><living>.
           validation: { pattern: /^G\d{1,2}P\d{3,4}$/, message: "Use standard obstetric notation, e.g. G2P1001." },
         },
         { name: "infertilityType", label: "27. Infertility Type", type: "select", options: ["None", "Primary", "Secondary"], core: true },
@@ -59,9 +57,6 @@ export const historyTab: TabConfig = {
     {
       columns: 3,
       fields: [
-        // Neither has a red dot on the source spec's page — unlike most of
-        // this tab's other fields, these two are opt-in rather than
-        // shown-by-default.
         { name: "medicalHistory", label: "38. Medical History", type: "multiselect", options: ["APLA", "Athritis", "Bronchial Asthma", "Cardiac Disease", "Diabetes", "Hypertension", "Thyroid disorder", "Epilepsy"] },
         { name: "medicalHistoryOthers", label: "Others", type: "text", placeholder: "E.g., Jaudice" },
         { name: "surgicalHistory", label: "39. Surgical History", type: "multiselect", options: ["Appendicectomy", "Cholecystectomy", "Ectopic", "Kidney surgery", "Caesarean"] },
@@ -71,12 +66,7 @@ export const historyTab: TabConfig = {
       ],
     },
     {
-      // Transposed, dynamic-column layout: G1 is always shown (the source
-      // spec marks the G1 column header with a red dot — the only default
-      // entry), and "Add Gravida" appends G2, G3, ... up to 10 ("From G2 to
-      // G6 or G10, allow users to add by allowing users to click an 'Add
-      // Gravida' button" — 10 is the more inclusive reading, so a
-      // higher-gravida patient's history isn't cut off).
+      // Transposed, dynamic-column layout: G1 always shown; "Add Gravida" appends up to G10.
       kind: "repeating",
       name: "obstetricHistory",
       title: "41. Obstetric History",

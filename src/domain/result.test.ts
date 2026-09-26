@@ -1,11 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { ok, err, isOk, isErr, mapResult, matchResult } from "./result";
 
-// This is a thin, mechanical utility (see the module comment in result.ts
-// for WHY it exists — TypeScript exhaustiveness checking for expected
-// domain failures, as opposed to throwing). Kept to a handful of tests
-// that document the contract, not an exhaustive suite — there's no
-// interesting logic here to have a regression in.
 describe("Result<T, E>", () => {
   it("ok()/err() build the two shapes, and isOk/isErr narrow between them", () => {
     const success = ok(42);
@@ -13,7 +8,7 @@ describe("Result<T, E>", () => {
 
     expect(isOk(success)).toBe(true);
     expect(isErr(success)).toBe(false);
-    if (isOk(success)) expect(success.value).toBe(42); // TS narrows `success.value` to `number` here
+    if (isOk(success)) expect(success.value).toBe(42);
 
     expect(isErr(failure)).toBe(true);
     if (isErr(failure)) expect(failure.error).toBe("ANALYTICS.UNKNOWN_FIELD");

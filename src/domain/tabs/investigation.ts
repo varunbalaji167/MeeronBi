@@ -1,16 +1,7 @@
 import { GridSectionConfig, TabConfig } from "./types";
 import { positiveNegative, yesNo } from "./sharedOptions";
 
-// Per the source spec's page 3 ("Default indicators to be recorded with
-// red dots – Investigations are mandatory"), virtually every field on this
-// tab carries a red dot — unlike Personal/History where only a subset is
-// default-shown, this entire tab is the default set. So every plain-section
-// field below is `core: true`; the grid sections (Thyroid/Genetic Tests,
-// Reactive Tests, ECHO Findings) are already always-shown regardless of
-// `core`, per domain/fieldVisibility.ts's documented scope boundary. The
-// net effect: this tab has nothing left to hide via "Customize fields" (see
-// isCustomizable in domain/fieldVisibility.ts), so that control no longer
-// appears for this tab — which matches "Investigations are mandatory".
+// All fields are core: investigations are mandatory, so this tab has nothing to hide via "Customize fields".
 export const investigationTab: TabConfig = {
   key: "investigation",
   label: "Investigation",
@@ -49,11 +40,6 @@ export const investigationTab: TabConfig = {
           label: "50. Platelet Count (lakh/µL)",
           type: "number",
           placeholder: "e.g., 2.5",
-          // Was free text in the source mockup ("Platelet Count") with a
-          // placeholder implying a numeric range (".257-2.88 lakh") — this
-          // is a lab value, so it becomes a real number field, both for
-          // input consistency and so it's Analytics-eligible as Ratio data
-          // (see domain/analytics/types.ts §3's type-mapping rule).
           validation: { min: 0.1, max: 15, message: "Platelet count should be between 0.1-15 lakh/µL." },
           core: true,
         },

@@ -25,7 +25,7 @@ describe("validatePhoneValue", () => {
     expect(validatePhoneValue({ countryIso: "IN", number: "9876543210" })).toBeNull();
   });
 
-  it("rejects a number that's too short OR too long for its country — not just 'under some generous global ceiling'", () => {
+  it("rejects a number that's too short or too long for its country", () => {
     expect(validatePhoneValue({ countryIso: "IN", number: "987654321" })).toBe(
       "Enter a valid phone number for India (exactly 10 digits)."
     );
@@ -34,8 +34,7 @@ describe("validatePhoneValue", () => {
     );
   });
 
-  it("the SAME digit count that's invalid for one country can be valid for another", () => {
-    // 11 digits: too many for India, exactly right for China.
+  it("the same digit count that's invalid for one country can be valid for another", () => {
     expect(validatePhoneValue({ countryIso: "IN", number: "98765432100" })).not.toBeNull();
     expect(validatePhoneValue({ countryIso: "CN", number: "98765432100" })).toBeNull();
   });
@@ -50,9 +49,7 @@ describe("sanitizePhoneDigits / sanitizePhoneValue", () => {
     expect(sanitizePhoneDigits("(987) 654-3210")).toBe("9876543210");
   });
 
-  it("re-derives a value truncated to the CURRENT country's max length — used when the country dropdown changes", () => {
-    // Say the number was entered while "US" (10 digits) was selected, then
-    // the country was switched to somewhere with a shorter plan.
+  it("re-derives a value truncated to the current country's max length", () => {
     const result = sanitizePhoneValue({ countryIso: "AM", number: "987654321" }); // Armenia: exactly 8
     expect(result).toEqual({ countryIso: "AM", number: "98765432" });
   });

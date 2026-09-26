@@ -12,13 +12,7 @@ interface UseFieldVisibilityResult {
   save: (names: string[]) => Promise<void>;
 }
 
-/**
- * Fetches/saves which fields are enabled for a tab (admin-only). Combine
- * the result with a record's own `data` via
- * domain/fieldVisibility.resolveVisibleFieldNames() to get the actual set
- * of fields to render — this hook only knows about the hospital-wide
- * preference, not any specific patient's record.
- */
+/** Fetches/saves which fields are enabled for a tab (hospital-wide, admin-only). */
 export function useFieldVisibility(tabKey: string, enabled: boolean): UseFieldVisibilityResult {
   const [storedSelection, setStoredSelection] = useState<string[] | null>(null);
   const [loading, setLoading] = useState(enabled);

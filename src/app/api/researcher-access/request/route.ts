@@ -1,24 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requestResearcherAccess } from "@/server/researchers/researcherAccessService";
 import { withApiErrorHandling } from "@/server/http/withApiErrorHandling";
+import { withRateLimit } from "@/server/http/rateLimit";
 
-/**
- * Deliberately unauthenticated — this IS the "no account yet, please give
- * me one" entry point, the same way /login is reachable with no session.
- * Never returns anything beyond a bare confirmation; the request itself is
- * reviewed by a SUPER_ADMIN (see /api/admin/researchers), and the account
- * this creates can't sign in until then (see authOptions.ts).
- */
-export const POST = withApiErrorHandling(async (req: NextRequest) => {
-  const body = await req.json().catch(() => ({}));
+// Public by design: account signup entry point, pending SUPER_ADMIN approval.
+// Rate-limited per IP.
+export const POST = withApiErrorHandling(
+  withRateLimit({ key: "researcher-access.request", limit: 3, windowMs: 60 * 60_000, detail: "RATE_LIMIT.RESEARCHER_ACCESS_REQUEST" })(
+    async (req: NextRequest) => {
+      const body = await req.json().catch(() => ({}));
 
-  const result = await requestResearcherAccess({
-    name: String(body?.name ?? ""),
-    email: String(body?.email ?? ""),
-    password: String(body?.password ?? ""),
-    institution: String(body?.institution ?? ""),
-    purpose: String(body?.purpose ?? ""),
-  });
+      const result = await requestResearcherAccess({
+        name: String(body?.name ?? ""),
+        email: String(body?.email ?? ""),
+        password: String(body?.password ?? ""),
+        institution: String(body?.institution ?? ""),
+        purpose: String(body?.purpose ?? ""),
+      });
 
-  return NextResponse.json({ ok: true, email: result.email }, { status: 201 });
-});
+      return NextResponse.json({ ok: true, email: result.email }, { status: 201 });
+    }
+  )
+);

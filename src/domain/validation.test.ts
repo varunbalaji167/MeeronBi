@@ -2,27 +2,16 @@ import { describe, it, expect } from "vitest";
 import { validateFieldValue, validateAllFields, sanitizeTabData, getIncompleteReasons, getFieldLevelErrors } from "./validation";
 import { FieldConfig, TabConfig } from "./tabs/types";
 
-// ─────────────────────────────────────────────────────────────────────────
-// A small, self-contained tab exercising every field kind validation.ts has
-// to handle (plain fields of every type, a grid section, a repeating
-// section). Deliberately NOT one of the real tab configs (personal.ts,
-// investigation.ts, ...) — these tests describe validation.ts's own
-// contract, so they shouldn't need touching every time a real tab's field
-// list changes for unrelated reasons.
-// ─────────────────────────────────────────────────────────────────────────
+// A small, self-contained tab exercising every field kind validation.ts handles.
 const plainFields: FieldConfig[] = [
   { name: "fullName", label: "Full Name", type: "text", maxLength: 50 },
   { name: "notes", label: "Notes", type: "textarea" },
   { name: "age", label: "Age", type: "number", validation: { min: 18, max: 60, message: "Age must be 18-60." } },
-  // No custom `message` — exercises the auto-generated fallback text.
   { name: "code", label: "9. Patient Code", type: "text", validation: { pattern: /^[A-Z]+$/ } },
   { name: "lmp", label: "LMP", type: "date" },
   { name: "edd", label: "EDD", type: "date" },
   { name: "visitTime", label: "Visit Time", type: "time" },
-  // `allowOther: true` — the closed-list-plus-escape-hatch pattern used
-  // for things like District/Religion (see domain/textPatterns.ts).
   { name: "district", label: "District", type: "select", options: ["North", "South"], allowOther: true },
-  // No `allowOther` — a genuinely closed list.
   { name: "bloodGroup", label: "Blood Group", type: "select", options: ["O+", "O-"] },
   { name: "symptoms", label: "Symptoms", type: "multiselect", options: ["Fever", "Cough", "Nausea"] },
   { name: "contactNo", label: "Contact", type: "phone" },
@@ -34,9 +23,6 @@ const testTab: TabConfig = {
   route: "test",
   requiredFields: ["fullName"],
   fieldValidators: {
-    // A cross-field check, the kind a single field's own `validation` rule
-    // can't express — see domain/tabs/personal.ts's real "EDD after LMP"
-    // check, which this mirrors.
     edd: (data) => (data.lmp && data.edd && new Date(data.edd) <= new Date(data.lmp) ? "EDD must be after LMP." : null),
   },
   sections: [
@@ -101,8 +87,6 @@ describe("validateAllFields", () => {
   });
 
   it("never validates grid or repeating section fields — see the module comment on why that's a deliberate scope boundary", () => {
-    // "hiv__result" isn't a real value in this grid's options, but it's
-    // simply not walked by this function at all.
     const errors = validateAllFields(testTab, { hiv__result: "not-a-real-option" });
     expect(errors.hiv__result).toBeUndefined();
   });
@@ -137,7 +121,6 @@ describe("sanitizeTabData — the server-side allowlist every save goes through"
     const result = sanitizeTabData(testTab, { symptoms: ["Fever", "Fever", "Cough", "NotARealSymptom"] });
     expect(result.symptoms).toEqual(["Fever", "Cough"]);
 
-    // A hand-built request sending something that isn't even an array.
     expect(sanitizeTabData(testTab, { symptoms: "Fever" }).symptoms).toEqual([]);
   });
 
@@ -156,10 +139,8 @@ describe("sanitizeTabData — the server-side allowlist every save goes through"
 
   it("text: strips control characters and clamps to maxLength (or a sensible default)", () => {
     expect(sanitizeTabData(testTab, { fullName: "  Jane\x00 Doe  " }).fullName).toBe("Jane Doe");
-    expect(sanitizeTabData(testTab, { fullName: "x".repeat(80) }).fullName).toHaveLength(50); // this field's own maxLength: 50
+    expect(sanitizeTabData(testTab, { fullName: "x".repeat(80) }).fullName).toHaveLength(50);
 
-    // "notes" (textarea) has no explicit maxLength, so it falls back to
-    // DEFAULT_MAX_LENGTH.textarea (3000) rather than being unbounded.
     expect(sanitizeTabData(testTab, { notes: "x".repeat(4000) }).notes).toHaveLength(3000);
   });
 
@@ -169,15 +150,13 @@ describe("sanitizeTabData — the server-side allowlist every save goes through"
 
   it("phone: sanitizes a real PhoneValue (via domain/phone.ts), drops anything else", () => {
     const result = sanitizeTabData(testTab, { contactNo: { countryIso: "IN", number: "98-765-43210 extra digits" } });
-    expect(result.contactNo).toEqual({ countryIso: "IN", number: "9876543210" }); // truncated to India's 10-digit rule
+    expect(result.contactNo).toEqual({ countryIso: "IN", number: "9876543210" });
 
-    expect(sanitizeTabData(testTab, { contactNo: "9876543210" }).contactNo).toBeNull(); // a bare string isn't a PhoneValue
+    expect(sanitizeTabData(testTab, { contactNo: "9876543210" }).contactNo).toBeNull();
   });
 
   it("grid sections: sanitizes the flat '<row>__<column>' keys using the column's own type/options", () => {
     expect(sanitizeTabData(testTab, { hiv__result: "Positive" }).hiv__result).toBe("Positive");
-    // Grid columns can't carry `allowOther` (see GridSectionConfig's type) —
-    // an out-of-list value is always dropped, never kept as custom text.
     expect(sanitizeTabData(testTab, { hiv__result: "Maybe" }).hiv__result).toBeNull();
   });
 
@@ -192,7 +171,7 @@ describe("sanitizeTabData — the server-side allowlist every save goes through"
     it("caps the number of rows at the section's maxCount, keeping the first N rather than trusting the client's array length", () => {
       const fiveVisits = Array.from({ length: 5 }, (_, i) => ({ note: `visit-${i}` }));
       const result = sanitizeTabData(testTab, { visits: fiveVisits });
-      expect(result.visits).toHaveLength(3); // this tab's `maxCount: 3`
+      expect(result.visits).toHaveLength(3);
       expect(result.visits.map((v: any) => v.note)).toEqual(["visit-0", "visit-1", "visit-2"]);
     });
 
@@ -211,8 +190,8 @@ describe("getIncompleteReasons / getFieldLevelErrors — the 'Mark Complete' gat
 
   it("getFieldLevelErrors merges format/range errors with 'required but empty' fields into one map for inline red text", () => {
     const errors = getFieldLevelErrors(testTab, { age: 5 });
-    expect(errors.age).toBe("Age must be 18-60."); // format error
-    expect(errors.fullName).toBe("This field is required."); // required-but-empty
+    expect(errors.age).toBe("Age must be 18-60.");
+    expect(errors.fullName).toBe("This field is required.");
   });
 
   it("prefers a tab's custom validateForComplete over requiredFields when both could apply", () => {

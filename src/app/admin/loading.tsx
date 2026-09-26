@@ -1,9 +1,6 @@
 import Skeleton from "@/components/ui/Skeleton";
 
-// Next.js automatically wraps the route segment below this file in a
-// Suspense boundary and shows this while the (async, session-checking)
-// AdminLayout Server Component is resolving — no client-side loading state
-// needed for that initial navigation.
+// Shown while the AdminLayout server component resolves.
 export default function AdminLoading() {
   return (
     <div className="flex min-h-screen flex-col bg-paper lg:h-screen lg:flex-row lg:overflow-hidden">

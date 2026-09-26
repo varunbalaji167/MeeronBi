@@ -1,21 +1,5 @@
-// ─────────────────────────────────────────────────────────────────────────
-// Per the source spec's Ultrasound page ("Ultrasounds are mandatory except
-// that specific ultrasounds are done in pre-specified time. Display based
-// on LMP.", repeated as "Auto select for display using LMP date" against
-// the NT Scan and Anomaly Scan sections): several Ultrasound sections have
-// a textbook gestational-age window (NT scan ~11-13w6d, anomaly scan
-// ~18-22w, etc.), and the UI should surface where the patient currently
-// stands relative to that window.
-//
-// Deliberately advisory, not enforced: this only computes numbers and a
-// yes/no "in window" flag — see domain/tabs/ultrasound.ts's
-// `recommendedWindow` on each section and GestationalWindowBadge for how
-// it's displayed. It never hides, disables, or blocks a section, because a
-// scan can legitimately happen earlier or later than the textbook window
-// (a delayed booking, a repeat scan, a referral) and Save as Draft must
-// never be gated on it — consistent with how every other soft validation
-// in this app works (see domain/validation.ts).
-// ─────────────────────────────────────────────────────────────────────────
+// Computes gestational age from LMP and whether it falls within an ultrasound section's
+// recommended window. Advisory only — never blocks or hides a section.
 
 export interface GestationalAge {
   /** Completed weeks (e.g. 12 for "12 weeks 3 days"). */
@@ -26,13 +10,7 @@ export interface GestationalAge {
   totalDays: number;
 }
 
-/**
- * Computes gestational age from a patient's LMP as of a reference date
- * (defaults to today). Returns null for a missing/unparseable LMP, or one
- * that would put gestational age outside a plausible human pregnancy
- * (negative, or past ~45 weeks) — safer to show nothing than a nonsense
- * "62 weeks pregnant" badge.
- */
+/** Computes gestational age from LMP as of a reference date; null if missing/unparseable or implausible (negative or past ~45 weeks). */
 export function computeGestationalAge(lmp: string | null | undefined, asOf: Date = new Date()): GestationalAge | null {
   if (!lmp) return null;
   const lmpDate = new Date(lmp);

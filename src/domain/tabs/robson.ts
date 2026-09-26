@@ -10,10 +10,7 @@ export const robsonTab: TabConfig = {
     {
       columns: 3,
       fields: [
-        // All 6 fields are `core: true` deliberately: Robson is a small,
-        // fixed clinical instrument (not a long optional form like the
-        // other tabs), so there's no meaningful "customize fields" story
-        // here — either a hospital uses it or hides the whole tab.
+        // All 6 fields are core: Robson is a fixed clinical instrument, not a customizable form.
         { name: "parity", label: "1. Parity", type: "radio", options: ["Nullipara", "Multipara"], core: true },
         { name: "previousCs", label: "2. Previous CS", type: "radio", options: ["None", "One Previous CS", "Two or more Previous CS"], core: true },
         { name: "numberOfFetuses", label: "3. Number of fetuses", type: "radio", options: ["Singleton", "Multiple"], core: true },
@@ -25,11 +22,7 @@ export const robsonTab: TabConfig = {
   ],
 };
 
-/**
- * Standard Robson Ten-Group Classification System (TGCS) logic, per WHO
- * guidance. Pure function of the six answers above — no I/O, easy to unit
- * test in isolation.
- */
+/** Standard Robson Ten-Group Classification System (TGCS) logic, per WHO guidance. */
 export function computeRobsonGroup(d: Record<string, any>): number | null {
   const { parity, previousCs, numberOfFetuses, fetalPresentation, gestationalAge, onsetOfLabour } = d;
   if (!parity || !previousCs || !numberOfFetuses || !fetalPresentation || !gestationalAge || !onsetOfLabour) {

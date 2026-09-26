@@ -17,16 +17,7 @@ interface Props {
   onCancel: () => void;
 }
 
-/**
- * A graphical, on-brand replacement for window.confirm() — used anywhere
- * the app needs a "are you sure?" step. Native browser confirm() dialogs
- * can't be styled, block the whole tab (including any pending toast), and
- * look jarringly out of place next to the rest of the UI.
- *
- * Accessibility: labeled via aria-labelledby/aria-describedby (not just
- * visual proximity), focuses the cancel button on open (the safer default
- * action for a destructive dialog), and closes on Escape.
- */
+/** Styled replacement for window.confirm(); focuses cancel on open and closes on Escape. */
 export default function ConfirmDialog({
   open,
   title,

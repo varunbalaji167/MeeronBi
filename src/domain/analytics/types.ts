@@ -1,39 +1,25 @@
-// ─────────────────────────────────────────────────────────────────────────
-// DRAFT — see docs/ANALYTICS_PLAN.md. Nothing in this file is imported by
-// the running app yet. It exists to pin down the shape of the Analytics
-// feature (field types, query/result shapes, standard segments) before any
-// aggregation, API, or UI code is written against it.
-//
-// Once implementation starts, this should behave like the rest of
-// domain/tabs/types.ts: pure data shapes, no framework/DB imports, safe to
-// unit-test in isolation.
-// ─────────────────────────────────────────────────────────────────────────
+// Draft data shapes for the Analytics feature (see docs/ANALYTICS_PLAN.md). Not yet used by the running app.
 
-/** How a field's values should be summarized. See ANALYTICS_PLAN.md §3 for the FieldConfig.type -> this mapping. */
+/** How a field's values should be summarized. */
 export type AnalyticsDataType = "ratio" | "categorical";
 
-/**
- * Points at one piece of analyzable data — either a field that's really
- * stored (on some tab, or one exploded option of a multiselect field), or
- * one of the derived values in ANALYTICS_PLAN.md §4 that's computed at
- * query time rather than read off a column.
- */
+/** Points at one piece of analyzable data: a stored field, an exploded multiselect option, or a derived value. */
 export type FieldRef =
   | { kind: "stored"; tabKey: string; fieldName: string }
   | { kind: "multiselectOption"; tabKey: string; fieldName: string; option: string }
   | { kind: "derived"; id: "age" | "bmi" };
 
-/** One entry in the field picker's list — what the registry (ANALYTICS_PLAN.md §9) produces for every analyzable field. */
+/** One entry in the field picker's list. */
 export interface AnalyticsFieldMeta {
   ref: FieldRef;
-  /** Human label for the picker, e.g. "Age of Mother", "13. NT (mm)", "Medical History: Bronchial Asthma". */
+  /** Human label for the picker, e.g. "Age of Mother". */
   label: string;
   dataType: AnalyticsDataType;
-  /** Unit suffix for display only, e.g. "cm", "kg", "mU/L" — cosmetic, not used in computation. */
+  /** Unit suffix for display only, e.g. "cm", "kg". */
   unit?: string;
-  /** True for a field living inside a grid/repeating section (can have more than one value per patient) — eligible for time-series mode only, not the simple cohort single-value path. See ANALYTICS_PLAN.md §3. */
+  /** True for a field in a grid/repeating section (multiple values per patient); eligible for time-series mode only. */
   multiValue?: boolean;
-  /** Key into STANDARD_SEGMENTS below, if this field has a predefined bracket set instead of falling back to a histogram. */
+  /** Key into STANDARD_SEGMENTS, if this field has a predefined bracket set instead of a histogram. */
   standardSegmentKey?: keyof typeof STANDARD_SEGMENTS;
 }
 
@@ -46,13 +32,7 @@ export interface SegmentBracket {
   max?: number;
 }
 
-/**
- * Appendix A's predefined brackets (ANALYTICS_PLAN.md §6), corrected where
- * the source PDF was internally inconsistent or garbled — see that
- * section for what changed and why. `tsh` is keyed by trimester bucket
- * since the reference range itself shifts across the pregnancy, unlike
- * the other three which are static per-patient.
- */
+/** Predefined brackets per field. `tsh` is keyed by trimester since its reference range shifts across pregnancy. */
 export const STANDARD_SEGMENTS = {
   age: [
     { label: "20-24 years", min: 20, max: 24 },
@@ -62,8 +42,6 @@ export const STANDARD_SEGMENTS = {
     { label: "40-44 years", min: 40, max: 44 },
   ] satisfies SegmentBracket[],
 
-  // Source spec's ">145" ("Below 5 feet") almost certainly meant "<145" —
-  // as literally written it leaves 145.0-149.9 uncovered. Closed here.
   heightCm: [
     { label: "Very Short / Higher Risk", max: 144.9 },
     { label: "Short / Moderate Risk", min: 145, max: 154.9 },
@@ -72,9 +50,7 @@ export const STANDARD_SEGMENTS = {
     { label: "Tall", min: 170 },
   ] satisfies SegmentBracket[],
 
-  // Standard WHO pre-pregnancy BMI bands. The source PDF's table was
-  // corrupted (IOM gestational-weight-gain figures bled into the BMI
-  // cutoffs — see ANALYTICS_PLAN.md §6) — these are the clean values.
+  // Standard WHO pre-pregnancy BMI bands.
   bmi: [
     { label: "Underweight", max: 18.49 },
     { label: "Normal Weight", min: 18.5, max: 24.9 },
@@ -84,10 +60,7 @@ export const STANDARD_SEGMENTS = {
     { label: "Obese (Class III / Morbid)", min: 40 },
   ] satisfies SegmentBracket[],
 
-  // Trimester-specific reference ranges, as given in the source spec.
-  // Flagged in ANALYTICS_PLAN.md §6 as lab/assay-dependent in real
-  // practice — treat as a default, not a hardcoded clinical fact, once
-  // this is hospital-configurable.
+  // Trimester-specific reference ranges; lab/assay-dependent in practice, treat as a default.
   tsh: {
     prePregnancy: { min: 0.4, max: 4.0 },
     t1: { min: 0.1, max: 2.5 },
@@ -96,7 +69,7 @@ export const STANDARD_SEGMENTS = {
   },
 } as const;
 
-/** Which pregnancy-timeline bucket a dated entry (a lab draw, a weight measurement, ...) falls into — see ANALYTICS_PLAN.md §5. */
+/** Which pregnancy-timeline bucket a dated entry falls into. */
 export type TrimesterBucket = "prePregnancy" | "t1" | "t2" | "t3";
 
 export interface CentralTendencies {
@@ -113,31 +86,16 @@ export interface CategoricalBreakdown {
   value: string;
   count: number;
   percent: number;
-  /**
-   * True when this entry represents multiple small buckets merged
-   * together by minimum-cell-size disclosure control (see
-   * domain/analytics/disclosureControl.ts) rather than one real category —
-   * lets the UI render it distinctly ("Other (suppressed)") instead of
-   * implying it's a normal data value.
-   */
+  /** True when this entry merges multiple small buckets via disclosure-control suppression. */
   suppressed?: boolean;
 }
 
-/** A Ratio field's values, bucketed into brackets (Standard Segment or generic histogram) — the fallback described in ANALYTICS_PLAN.md §6. */
+/** A Ratio field's values, bucketed into brackets (Standard Segment or generic histogram). */
 export interface SegmentedBreakdown extends CategoricalBreakdown {
   bracket: SegmentBracket;
 }
 
-/**
- * Deliberately does NOT carry a `patientId` (or any other per-patient
- * identifier) — a chart only ever needs (x, y) pairs to plot dots, and
- * attaching an id here would be a pure liability with no rendering
- * purpose: it's exactly the kind of per-patient handle disclosure control
- * exists to keep out of an aggregate response. If a future feature
- * genuinely needs "click a dot to open that patient," that needs its own
- * explicit, separately-authorized endpoint — not a passthrough id on every
- * scatter response by default.
- */
+/** Deliberately has no `patientId`: aggregate responses must not carry per-patient identifiers. */
 export interface ScatterPoint {
   x: number;
   y: number;
@@ -149,13 +107,13 @@ export interface CrossTabCell {
   value: string;
   count: number;
   percent: number;
-  /** See CategoricalBreakdown.suppressed — same idea, for a cross-tab cell. */
+  /** Same idea as CategoricalBreakdown.suppressed. */
   suppressed?: boolean;
 }
 
 export interface TimeSeriesPoint {
   bucket: TrimesterBucket;
-  /** Averaged if this point represents a filter-category cohort rather than a single patient — see ANALYTICS_PLAN.md §5. */
+  /** Averaged if this point represents a filter-category cohort rather than a single patient. */
   value: number;
   /** Present only in single-patient mode. */
   date?: string;
@@ -181,12 +139,7 @@ export interface AnalyticsQuery {
   filter?: FieldRef;
 }
 
-/**
- * Discriminated union covering the six branches in ANALYTICS_PLAN.md §2,
- * so the UI can pick its chart type (§9: bar/pie/scatter/grouped-bar, all
- * already covered by the recharts dependency already in package.json) off
- * `kind` alone rather than re-deriving the same field-type logic twice.
- */
+/** Discriminated union so the UI can pick its chart type off `kind` alone. */
 export type AnalyticsResult =
   | { kind: "ratioSummary"; stats: CentralTendencies; buckets: SegmentedBreakdown[] }
   | { kind: "ratioScatter"; points: ScatterPoint[] }

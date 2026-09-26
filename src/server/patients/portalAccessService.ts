@@ -3,16 +3,8 @@ import { prisma } from "@/server/db/prisma";
 import { NotFoundError, ValidationError, ConflictError } from "@/server/http/errors";
 
 /**
- * Creates or replaces a patient's portal login. Business rule: a patient
- * has AT MOST ONE login, ever. If they already have one, this updates that
- * same User row in place (email + password) instead of creating a second
- * account — and refuses outright if the requested email already belongs to
- * someone else (another patient, or a staff account), rather than silently
- * reassigning it. See docs/ARCHITECTURE.md's "Patient portal login" section
- * for the incident this was written to prevent.
- *
- * Throws (rather than returning a result union) so the route handler can
- * stay a plain `await` with no branching — see server/http/errors.ts.
+ * Creates or replaces a patient's portal login. A patient has at most one login: if they already have one, updates it in place;
+ * refuses if the requested email already belongs to someone else.
  */
 export async function setPatientPortalAccess(
   patientId: string,
@@ -62,9 +54,7 @@ export async function setPatientPortalAccess(
           data: { email, passwordHash, role: "PATIENT" },
         })
       : await prisma.user.create({
-          // The portal login's own facilityId always matches the patient
-          // it belongs to — a patient login is never itself "at" a
-          // different facility than their own care record.
+          // The login's facilityId always matches the patient's own facility.
           data: { email, passwordHash, role: "PATIENT", facilityId: patient.facilityId, patient: { connect: { id: patient.id } } },
         });
 

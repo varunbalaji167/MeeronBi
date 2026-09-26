@@ -14,24 +14,16 @@ export default async function PatientLayout({
   children: React.ReactNode;
   params: { id: string };
 }) {
-  // Reuses the same guard the per-tab API routes use (see
-  // server/auth/guards.ts), rather than duplicating the ADMIN/SUPER_ADMIN/
-  // facility logic inline here a second time — it already handles
-  // SUPER_ADMIN's cross-facility access correctly, which a bare
-  // `role !== "ADMIN"` check here previously did not (SUPER_ADMIN was
-  // wrongly 404'd). notFound() covers both "no session" and "not this
-  // caller's patient" the same way the API layer does.
+  // Guards facility ownership and role access; 404s on any denial.
   let session;
   try {
     session = await assertPatientRecordAccessible(params.id);
   } catch {
     notFound();
   }
-  if (session.user.role === "PATIENT") notFound(); // this layout is staff-only; the patient portal has its own read-only view
+  if (session.user.role === "PATIENT") notFound(); // staff-only layout
 
-  // SUPER_ADMIN isn't scoped to one facility (see guards.ts) — omitting
-  // the filter here is safe specifically because assertPatientRecordAccessible
-  // above already confirmed this exact patient is reachable by this session.
+  // SUPER_ADMIN isn't facility-scoped; access was already verified above.
   const patient = await getPatientHeaderInfo(
     params.id,
     session.user.role === "SUPER_ADMIN" ? undefined : session.user.facilityId

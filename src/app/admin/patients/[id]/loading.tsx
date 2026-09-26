@@ -1,9 +1,6 @@
 import Skeleton from "@/components/ui/Skeleton";
 
-// Shown while the [id] layout fetches this specific patient's header info
-// (name, MRD, contact, per-tab status) from the database — matches the
-// shape of PatientHeader + the CareTimeline stepper + a form panel so the
-// page doesn't visually "jump" once the real content arrives.
+// Skeleton matching PatientHeader + CareTimeline + form panel layout.
 export default function PatientRecordLoading() {
   return (
     <div className="flex flex-col gap-5">

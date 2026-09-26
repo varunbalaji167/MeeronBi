@@ -11,16 +11,7 @@ export interface RequestResearcherAccessInput {
   purpose: string;
 }
 
-/**
- * Public entry point for "Request researcher access" (no session — anyone
- * can submit a request, same as anyone can view a login page). Creates the
- * User row immediately, role RESEARCHER, with a PENDING ResearcherProfile —
- * see that model's comment in schema.prisma for why the account exists
- * before approval rather than only being created afterward. Sign-in itself
- * stays blocked until a SUPER_ADMIN approves (see authOptions.ts's
- * authorize()); this function only ever produces a pending request, never
- * an active session.
- */
+/** Public "Request researcher access" entry point: creates a RESEARCHER User with a PENDING profile. Sign-in stays blocked until approved. */
 export async function requestResearcherAccess(input: RequestResearcherAccessInput): Promise<{ email: string }> {
   const name = input.name.trim();
   const email = input.email.toLowerCase().trim();
@@ -82,7 +73,7 @@ export async function listResearcherRequests(status?: "PENDING" | "APPROVED" | "
   });
 }
 
-/** Throws NotFoundError for an unknown userId, or ConflictError if this request was already reviewed — reviewing twice (e.g. two admins clicking Approve at once) should be a clear conflict, not a silent overwrite. */
+/** Throws NotFoundError for an unknown userId, or ConflictError if already reviewed. */
 async function getReviewablePendingRequest(userId: string) {
   const profile = await prisma.researcherProfile.findUnique({ where: { userId } });
   if (!profile) throw new NotFoundError("Researcher request not found.");

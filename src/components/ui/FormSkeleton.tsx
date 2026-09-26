@@ -1,16 +1,6 @@
 import Skeleton from "./Skeleton";
 
-/**
- * Shaped like DynamicForm's own layout (header row with a status-pill
- * placeholder, then one or more `.panel` sections of label+input pairs) so
- * that TabRecordView's initial data fetch doesn't hand off from a skeleton
- * (app/**\/loading.tsx, covering the server render) to a spinner
- * (PageLoader, covering the client-side fetch) before finally showing real
- * content — see docs/ARCHITECTURE.md's "Loading UI" section. Using the same
- * skeleton shape for both moments means the person sees one continuous
- * "form is materializing" impression instead of a skeleton→spinner→data
- * flicker.
- */
+/** Placeholder shaped like DynamicForm's layout, avoiding a skeleton-to-spinner flicker on load. */
 export default function FormSkeleton({
   panels = 2,
   fieldsPerPanel = 8,

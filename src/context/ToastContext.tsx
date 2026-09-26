@@ -59,14 +59,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={{ showToast }}>
       {children}
-      {/*
-        Top-center, not bottom: DynamicForm has its own sticky action bar
-        pinned to the bottom of the screen while editing a tab, and a
-        bottom-anchored toast either collided with it or rendered
-        underneath it — which is very likely why "Marked complete" toasts
-        were going unnoticed. Top-of-viewport avoids that entirely and is
-        visible regardless of which part of a long form you're scrolled to.
-      */}
+      {/* Top-center to avoid colliding with DynamicForm's sticky bottom action bar. */}
       <div
         className="pointer-events-none fixed inset-x-0 top-4 z-[60] flex flex-col items-center gap-2 px-4 sm:top-5"
         aria-live="polite"

@@ -29,7 +29,7 @@ interface Props {
   extra?: React.ReactNode;
   /** e.g. a "Customize fields" button — rendered next to the status badge. */
   headerActions?: React.ReactNode;
-  /** The patient's current gestational age (from Personal's LMP) — only passed by Ultrasound, for its `recommendedWindow` badges. See GestationalWindowBadge. */
+  /** Gestational age; only passed by Ultrasound for its recommendedWindow badges. */
   ga?: GestationalAge | null;
 }
 
@@ -53,11 +53,7 @@ export default function DynamicForm({
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [dirty, setDirty] = useState(false);
   const [touched, setTouched] = useState<Set<string>>(new Set());
-  // Errors the SERVER rejected on the last save (e.g. an MRD already used
-  // by another patient) — client-side validation can't know about this
-  // ahead of time. Merged into the same field-name -> message map as
-  // client-side errors so they render identically (red text under the
-  // box), and cleared the moment the person edits that field again.
+  // Field errors returned by the server (e.g. duplicate MRD), merged with client-side errors.
   const [serverFieldErrors, setServerFieldErrors] = useState<Record<string, string>>({});
   const { setActiveForm } = useTabForm();
   const { showToast } = useToast();
@@ -81,9 +77,7 @@ export default function DynamicForm({
   function setField(name: string, value: any) {
     setData((prev) => ({ ...prev, [name]: value }));
     setDirty(true);
-    // A server-side error (e.g. MRD conflict) about this field is no
-    // longer necessarily true once the person changes it — clear it so it
-    // doesn't linger and get confused with a fresh, unrelated attempt.
+    // Clear any stale server error for this field now that it's being edited.
     setServerFieldErrors((prev) => {
       if (!(name in prev)) return prev;
       const next = { ...prev };
@@ -185,10 +179,7 @@ export default function DynamicForm({
     }
   }
 
-  // Register this form with the shared TabFormContext so tab navigation can
-  // autosave a draft before leaving the page, and other UI (e.g. the
-  // patient header's live name) can reactively read what's currently being
-  // typed, and warn on a hard page close.
+  // Registers this form with TabFormContext for autosave-on-navigate and live-read by other UI.
   useEffect(() => {
     if (readOnly) return;
     setActiveForm({
@@ -271,14 +262,7 @@ export default function DynamicForm({
       {extra}
 
       {!readOnly && (
-        // `left-0 right-0` (not `inset-x-0`) so `lg:left-60` can override
-        // just the left edge at desktop width to start after the sidebar
-        // (AppSidebar is `lg:w-60`) — with `inset-x-0`, this bar's
-        // translucent bg-white/95 painted across the FULL viewport width,
-        // sitting on top of the sidebar's bottom strip (where Sign Out
-        // lives) even though only the *inner* content was padded clear of
-        // it. Geometrically constraining the bar itself, not just its
-        // content, is what actually stops the overlap.
+        // left-0/right-0 (not inset-x-0) lets lg:left-60 clear the sidebar without overlapping it.
         <div className="fixed bottom-0 left-0 right-0 lg:left-60 flex justify-center border-t border-line bg-white/95 py-3 backdrop-blur">
           <div className="flex w-full max-w-5xl flex-wrap items-center gap-3 px-4 sm:px-6 lg:px-8">
             <button
