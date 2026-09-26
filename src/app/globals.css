@@ -59,7 +59,7 @@
   }
 }
 .animate-rise-in {
-  animation: rise-in 0.28s ease-out;
+  animation: rise-in 0.28s ease-out backwards;
 }
 
 @layer components {
