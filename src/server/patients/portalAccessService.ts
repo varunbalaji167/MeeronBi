@@ -1,6 +1,8 @@
 import bcrypt from "bcryptjs";
 import { prisma } from "@/server/db/prisma";
-import { NotFoundError, ValidationError, ConflictError } from "@/server/http/errors";
+import { ValidationError, ConflictError } from "@/server/http/errors";
+import { writeAuditLog } from "@/server/http/audit";
+import { patientNotFoundInFacilityError } from "./errors";
 
 /**
  * Creates or replaces a patient's portal login. A patient has at most one login: if they already have one, updates it in place;
@@ -9,7 +11,8 @@ import { NotFoundError, ValidationError, ConflictError } from "@/server/http/err
 export async function setPatientPortalAccess(
   patientId: string,
   rawEmail: string,
-  password: string
+  password: string,
+  actorUserId?: string
 ): Promise<{ email: string }> {
   const email = rawEmail.toLowerCase().trim();
   if (!email || !password) {
@@ -23,7 +26,7 @@ export async function setPatientPortalAccess(
     where: { id: patientId },
     select: { id: true, userId: true, facilityId: true },
   });
-  if (!patient) throw new NotFoundError("Patient not found.");
+  if (!patient) throw patientNotFoundInFacilityError();
 
   const existingUserWithEmail = await prisma.user.findUnique({
     where: { email },
@@ -48,17 +51,28 @@ export async function setPatientPortalAccess(
   const passwordHash = await bcrypt.hash(password, 10);
 
   try {
-    const user = patient.userId
-      ? await prisma.user.update({
-          where: { id: patient.userId },
-          data: { email, passwordHash, role: "PATIENT" },
-        })
-      : await prisma.user.create({
-          // The login's facilityId always matches the patient's own facility.
-          data: { email, passwordHash, role: "PATIENT", facilityId: patient.facilityId, patient: { connect: { id: patient.id } } },
-        });
+    return await prisma.$transaction(async (tx) => {
+      const user = patient.userId
+        ? await tx.user.update({
+            where: { id: patient.userId },
+            data: { email, passwordHash, role: "PATIENT" },
+          })
+        : await tx.user.create({
+            // The login's facilityId always matches the patient's own facility.
+            data: { email, passwordHash, role: "PATIENT", facilityId: patient.facilityId, patient: { connect: { id: patient.id } } },
+          });
 
-    return { email: user.email };
+      await writeAuditLog(tx, {
+        facilityId: patient.facilityId,
+        actorUserId,
+        action: "PORTAL_ACCESS_SET",
+        entityType: "Patient",
+        entityId: patient.id,
+        after: { email: user.email },
+      });
+
+      return { email: user.email };
+    });
   } catch (err: any) {
     if (err?.code === "P2002") {
       throw new ConflictError("This email is already registered to another account.", {

@@ -1,7 +1,9 @@
 import { getServerSession, type Session } from "next-auth";
 import { authOptions } from "./authOptions";
 import { prisma } from "@/server/db/prisma";
-import { UnauthorizedError, ForbiddenError, NotFoundError } from "@/server/http/errors";
+import { UnauthorizedError, ForbiddenError } from "@/server/http/errors";
+import { sessionStaleError, wrongRoleError, researcherNotApprovedError } from "./errors";
+import { patientNotFoundInFacilityError } from "@/server/patients/errors";
 
 /**
  * Access-control guards used by every API route/server layout; throw typed errors instead of returning a result union.
@@ -14,9 +16,6 @@ export async function getSession() {
   return getServerSession(authOptions);
 }
 
-const STALE_SESSION_MESSAGE =
-  "Your session is no longer valid (often caused by a database reset/reseed after you signed in) — please sign out and sign in again.";
-
 /** Confirms the session's user id still exists, catching a stale cookie left over from a DB reset/reseed. */
 async function userExists(userId: string): Promise<boolean> {
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
@@ -28,9 +27,9 @@ export async function requireAdminSession(): Promise<Session> {
   const session = await getSession();
   if (!session?.user) throw new UnauthorizedError();
   if (session.user.role !== "ADMIN" && session.user.role !== "SUPER_ADMIN") {
-    throw new ForbiddenError("Admin access only.");
+    throw wrongRoleError("Admin access only.");
   }
-  if (!(await userExists(session.user.id))) throw new UnauthorizedError(STALE_SESSION_MESSAGE);
+  if (!(await userExists(session.user.id))) throw sessionStaleError();
   return session;
 }
 
@@ -38,8 +37,8 @@ export async function requireAdminSession(): Promise<Session> {
 export async function requireSuperAdminSession(): Promise<Session> {
   const session = await getSession();
   if (!session?.user) throw new UnauthorizedError();
-  if (session.user.role !== "SUPER_ADMIN") throw new ForbiddenError("Super-admin access only.");
-  if (!(await userExists(session.user.id))) throw new UnauthorizedError(STALE_SESSION_MESSAGE);
+  if (session.user.role !== "SUPER_ADMIN") throw wrongRoleError("Super-admin access only.");
+  if (!(await userExists(session.user.id))) throw sessionStaleError();
   return session;
 }
 
@@ -48,9 +47,9 @@ export async function requirePatientSession(): Promise<Session> {
   const session = await getSession();
   if (!session?.user) throw new UnauthorizedError();
   if (session.user.role !== "PATIENT" || !session.user.patientId) {
-    throw new ForbiddenError("Patient access only.");
+    throw wrongRoleError("Patient access only.");
   }
-  if (!(await userExists(session.user.id))) throw new UnauthorizedError(STALE_SESSION_MESSAGE);
+  if (!(await userExists(session.user.id))) throw sessionStaleError();
   return session;
 }
 
@@ -58,14 +57,14 @@ export async function requirePatientSession(): Promise<Session> {
 export async function requireResearcherSession(): Promise<Session> {
   const session = await getSession();
   if (!session?.user) throw new UnauthorizedError();
-  if (session.user.role !== "RESEARCHER") throw new ForbiddenError("Researcher access only.");
+  if (session.user.role !== "RESEARCHER") throw wrongRoleError("Researcher access only.");
 
   const profile = await prisma.researcherProfile.findUnique({
     where: { userId: session.user.id },
     select: { status: true },
   });
   if (!profile || profile.status !== "APPROVED") {
-    throw new ForbiddenError("Your researcher access isn't approved.");
+    throw researcherNotApprovedError();
   }
   return session;
 }
@@ -75,12 +74,12 @@ export async function requireAdminSessionForPatient(patientId: string): Promise<
   const session = await requireAdminSession();
   if (session.user.role === "SUPER_ADMIN") {
     const exists = await prisma.patient.findUnique({ where: { id: patientId }, select: { id: true } });
-    if (!exists) throw new NotFoundError("Patient not found.");
+    if (!exists) throw patientNotFoundInFacilityError();
     return session;
   }
   const patient = await prisma.patient.findUnique({ where: { id: patientId }, select: { facilityId: true } });
   if (!patient || patient.facilityId !== session.user.facilityId) {
-    throw new NotFoundError("Patient not found.");
+    throw patientNotFoundInFacilityError();
   }
   return session;
 }
@@ -94,12 +93,12 @@ export async function assertPatientRecordAccessible(patientId: string): Promise<
   if (!session?.user) throw new UnauthorizedError();
   if (session.user.role === "SUPER_ADMIN") {
     const exists = await prisma.patient.findUnique({ where: { id: patientId }, select: { id: true } });
-    if (!exists) throw new NotFoundError("Patient not found.");
+    if (!exists) throw patientNotFoundInFacilityError();
     return session;
   }
   if (session.user.role === "ADMIN") {
     const patient = await prisma.patient.findUnique({ where: { id: patientId }, select: { facilityId: true } });
-    if (!patient || patient.facilityId !== session.user.facilityId) throw new NotFoundError("Patient not found.");
+    if (!patient || patient.facilityId !== session.user.facilityId) throw patientNotFoundInFacilityError();
     return session;
   }
   if (session.user.role === "PATIENT" && session.user.patientId === patientId) return session;

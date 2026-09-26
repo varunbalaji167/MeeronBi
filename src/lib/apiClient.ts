@@ -35,9 +35,17 @@ export async function toApiError(res: Response, fallbackMessage = "Something wen
   return new ApiError(json?.error || fallbackMessage, res.status, json?.code, json?.fieldErrors, json?.detail, requestId);
 }
 
+/** Namespaced `detail` codes that need a distinctly different message than their `code`'s generic one. */
+const DETAIL_MESSAGES: Partial<Record<string, string>> = {
+  "AUTH.SESSION_STALE":
+    "Your session is no longer valid (often caused by a database reset/reseed after you signed in) — please sign out and sign in again.",
+};
+
 /** Maps a caught error to a short, actionable toast message. */
 export function friendlyErrorMessage(err: unknown, fallback: string): string {
   if (err instanceof ApiError) {
+    if (err.detail && DETAIL_MESSAGES[err.detail]) return DETAIL_MESSAGES[err.detail]!;
+
     // Append the request id on 5xx so it can be traced in server logs/Sentry.
     const ref = err.status >= 500 && err.requestId ? ` (ref: ${err.requestId})` : "";
     switch (err.code) {

@@ -28,6 +28,17 @@ enum RecordStatus {
   COMPLETE
 }
 
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  COMPLETE
+  APPROVE
+  REJECT
+  PORTAL_ACCESS_SET
+  PORTAL_ACCESS_REVOKED
+}
+
 // The tenant boundary — every Patient/User/TabFieldPreference belongs to one Facility.
 model Facility {
   id          String   @id @default(cuid())
@@ -42,6 +53,7 @@ model Facility {
   users               User[]
   patients            Patient[]
   tabFieldPreferences TabFieldPreference[]
+  auditLogs           AuditLog[]
 
   @@map("facilities")
 }
@@ -68,6 +80,8 @@ model User {
   researcherProfile ResearcherProfile?
 
   reviewedResearchers ResearcherProfile[] @relation("ReviewedBy")
+
+  auditLogs AuditLog[]
 
   @@index([facilityId])
   @@map("users")
@@ -236,4 +250,27 @@ model TabFieldPreference {
 
   @@id([facilityId, tabKey])
   @@map("tab_field_preferences")
+}
+
+// Per-entity-change audit trail — a compliance requirement for medical data (researcher-query
+// logging, "who touched this record"). Always written inside the same prisma.$transaction as the
+// mutation it records (see writeAuditLog in src/server/http/audit.ts), so audit and mutation
+// succeed-or-fail together — a swallowed audit write on a successful mutation is exactly the class
+// of bug this pattern exists to prevent.
+model AuditLog {
+  id          String      @id @default(cuid())
+  facilityId  String
+  facility    Facility    @relation(fields: [facilityId], references: [id])
+  actorUserId String?
+  actor       User?       @relation(fields: [actorUserId], references: [id])
+  action      AuditAction
+  entityType  String // "Patient" | "TabRecord" | "User" | "ResearcherProfile" | "TabFieldPreference"
+  entityId    String
+  before      Json?
+  after       Json?
+  requestId   String?
+  createdAt   DateTime    @default(now())
+
+  @@index([facilityId, entityType, entityId])
+  @@map("audit_logs")
 }

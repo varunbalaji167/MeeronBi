@@ -18,7 +18,7 @@ export async function handleTabGet(tabKey: string, patientId: string) {
 
 export async function handleTabSave(tabKey: string, patientId: string, req: Request) {
   // Only staff (ADMIN) may write; this also confirms the patient belongs to the admin's own facility.
-  await requireAdminSessionForPatient(patientId);
+  const session = await requireAdminSessionForPatient(patientId);
   if (!isKnownTabKey(tabKey)) throw new NotFoundError("Unknown tab.");
 
   const body = await req.json();
@@ -35,12 +35,12 @@ export async function handleTabSave(tabKey: string, patientId: string, req: Requ
     }
   }
 
-  const record = await saveTabRecord(tabKey, patientId, data, status);
+  const record = await saveTabRecord(tabKey, patientId, data, status, session.user.id);
 
   // Keep the patient-list's denormalized columns in sync with the Personal tab; report an MRD conflict as a field-level error.
   let fieldErrors: Record<string, string> | undefined;
   if (tabKey === "personal") {
-    const sync = await syncPatientSummaryFromPersonal(patientId, record.data);
+    const sync = await syncPatientSummaryFromPersonal(patientId, record.data, session.user.id);
     if (sync.mrnConflict) {
       fieldErrors = { mrn: "This CR No./MRD is already used by another patient at your facility — choose a different one." };
     }
@@ -50,9 +50,9 @@ export async function handleTabSave(tabKey: string, patientId: string, req: Requ
 }
 
 export async function handleTabDelete(tabKey: string, patientId: string) {
-  await requireAdminSessionForPatient(patientId);
+  const session = await requireAdminSessionForPatient(patientId);
   if (!isKnownTabKey(tabKey)) throw new NotFoundError("Unknown tab.");
 
-  await deleteTabRecord(tabKey, patientId);
+  await deleteTabRecord(tabKey, patientId, session.user.id);
   return NextResponse.json({ ok: true });
 }

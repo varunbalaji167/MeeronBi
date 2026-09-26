@@ -1,5 +1,7 @@
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/server/db/prisma";
 import { isPhoneValue, formatPhoneValue } from "@/domain/phone";
+import { writeAuditLog } from "@/server/http/audit";
 
 const DEFAULT_PAGE_SIZE = 10;
 const MAX_PAGE_SIZE = 50;
@@ -62,14 +64,25 @@ export interface CreatePatientInput {
 
 /** Creates a patient with only a name; MRD/contact are collected in the Personal tab and synced back by `syncPatientSummaryFromPersonal`. */
 export async function createPatient({ fullName, createdById, facilityId }: CreatePatientInput) {
-  return prisma.patient.create({
-    data: {
-      fullName,
-      createdById,
+  return prisma.$transaction(async (tx) => {
+    const patient = await tx.patient.create({
+      data: {
+        fullName,
+        createdById,
+        facilityId,
+        // Create an empty draft Personal record so the tab shows "Draft" right away.
+        personal: { create: { data: { fullName }, status: "DRAFT" } },
+      },
+    });
+    await writeAuditLog(tx, {
       facilityId,
-      // Create an empty draft Personal record so the tab shows "Draft" right away.
-      personal: { create: { data: { fullName }, status: "DRAFT" } },
-    },
+      actorUserId: createdById,
+      action: "CREATE",
+      entityType: "Patient",
+      entityId: patient.id,
+      after: patient,
+    });
+    return patient;
   });
 }
 
@@ -79,7 +92,8 @@ export async function createPatient({ fullName, createdById, facilityId }: Creat
  */
 export async function syncPatientSummaryFromPersonal(
   patientId: string,
-  personalData: Record<string, any>
+  personalData: Record<string, any>,
+  actorUserId?: string
 ): Promise<{ mrnConflict: boolean }> {
   const fullName =
     typeof personalData.fullName === "string" && personalData.fullName.trim()
@@ -94,14 +108,31 @@ export async function syncPatientSummaryFromPersonal(
   if (contactNo !== undefined) patch.contactNo = contactNo;
   if (Object.keys(patch).length === 0) return { mrnConflict: false };
 
+  async function updateAndAudit(tx: Prisma.TransactionClient, data: Record<string, any>) {
+    const before = await tx.patient.findUnique({ where: { id: patientId } });
+    const after = await tx.patient.update({ where: { id: patientId }, data });
+    if (before) {
+      await writeAuditLog(tx, {
+        facilityId: after.facilityId,
+        actorUserId,
+        action: "UPDATE",
+        entityType: "Patient",
+        entityId: patientId,
+        before,
+        after,
+      });
+    }
+    return after;
+  }
+
   try {
-    await prisma.patient.update({ where: { id: patientId }, data: patch });
+    await prisma.$transaction((tx) => updateAndAudit(tx, patch));
     return { mrnConflict: false };
   } catch (err: any) {
     if (err?.code === "P2002" && mrn !== undefined) {
       const { mrn: _omit, ...rest } = patch;
       if (Object.keys(rest).length > 0) {
-        await prisma.patient.update({ where: { id: patientId }, data: rest });
+        await prisma.$transaction((tx) => updateAndAudit(tx, rest));
       }
       return { mrnConflict: true };
     }
@@ -135,10 +166,24 @@ export async function getPatientHeaderInfo(id: string, facilityId?: string) {
  * Deletes a patient (tab records cascade via the DB) and their portal login, if any, deleted explicitly since the FK points the other way.
  * Caller must already have confirmed `id` belongs to their facility (via `requireAdminSessionForPatient`) — not re-checked here.
  */
-export async function deletePatient(id: string) {
-  const patient = await prisma.patient.findUnique({ where: { id }, select: { userId: true } });
-  const deleted = await prisma.patient.delete({ where: { id } });
-  if (patient?.userId) {
+export async function deletePatient(id: string, actorUserId?: string) {
+  const patient = await prisma.patient.findUnique({ where: { id } });
+  if (!patient) return prisma.patient.delete({ where: { id } });
+
+  const deleted = await prisma.$transaction(async (tx) => {
+    const result = await tx.patient.delete({ where: { id } });
+    await writeAuditLog(tx, {
+      facilityId: patient.facilityId,
+      actorUserId,
+      action: "DELETE",
+      entityType: "Patient",
+      entityId: id,
+      before: patient,
+    });
+    return result;
+  });
+
+  if (patient.userId) {
     await prisma.user.delete({ where: { id: patient.userId } }).catch(() => {});
   }
   return deleted;

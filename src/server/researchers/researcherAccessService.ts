@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/server/db/prisma";
 import { getHqFacility } from "@/server/facilities/facilityRepository";
 import { NotFoundError, ValidationError, ConflictError } from "@/server/http/errors";
+import { writeAuditLog } from "@/server/http/audit";
 
 export interface RequestResearcherAccessInput {
   name: string;
@@ -75,7 +76,10 @@ export async function listResearcherRequests(status?: "PENDING" | "APPROVED" | "
 
 /** Throws NotFoundError for an unknown userId, or ConflictError if already reviewed. */
 async function getReviewablePendingRequest(userId: string) {
-  const profile = await prisma.researcherProfile.findUnique({ where: { userId } });
+  const profile = await prisma.researcherProfile.findUnique({
+    where: { userId },
+    include: { user: { select: { facilityId: true } } },
+  });
   if (!profile) throw new NotFoundError("Researcher request not found.");
   if (profile.status !== "PENDING") {
     throw new ConflictError(`This request was already ${profile.status.toLowerCase()}.`);
@@ -84,17 +88,41 @@ async function getReviewablePendingRequest(userId: string) {
 }
 
 export async function approveResearcher(userId: string, reviewedById: string) {
-  await getReviewablePendingRequest(userId);
-  return prisma.researcherProfile.update({
-    where: { userId },
-    data: { status: "APPROVED", reviewedAt: new Date(), reviewedById },
+  const { user, ...before } = await getReviewablePendingRequest(userId);
+  return prisma.$transaction(async (tx) => {
+    const after = await tx.researcherProfile.update({
+      where: { userId },
+      data: { status: "APPROVED", reviewedAt: new Date(), reviewedById },
+    });
+    await writeAuditLog(tx, {
+      facilityId: user.facilityId,
+      actorUserId: reviewedById,
+      action: "APPROVE",
+      entityType: "ResearcherProfile",
+      entityId: userId,
+      before,
+      after,
+    });
+    return after;
   });
 }
 
 export async function rejectResearcher(userId: string, reviewedById: string, reviewNote?: string) {
-  await getReviewablePendingRequest(userId);
-  return prisma.researcherProfile.update({
-    where: { userId },
-    data: { status: "REJECTED", reviewedAt: new Date(), reviewedById, reviewNote: reviewNote?.trim().slice(0, 1000) || null },
+  const { user, ...before } = await getReviewablePendingRequest(userId);
+  return prisma.$transaction(async (tx) => {
+    const after = await tx.researcherProfile.update({
+      where: { userId },
+      data: { status: "REJECTED", reviewedAt: new Date(), reviewedById, reviewNote: reviewNote?.trim().slice(0, 1000) || null },
+    });
+    await writeAuditLog(tx, {
+      facilityId: user.facilityId,
+      actorUserId: reviewedById,
+      action: "REJECT",
+      entityType: "ResearcherProfile",
+      entityId: userId,
+      before,
+      after,
+    });
+    return after;
   });
 }

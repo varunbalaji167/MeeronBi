@@ -20,6 +20,6 @@ export const PUT = withApiErrorHandling(async (req: NextRequest, { params }: { p
 
   const body = await req.json().catch(() => ({}));
   const enabledFieldNames = Array.isArray(body?.enabledFieldNames) ? body.enabledFieldNames : [];
-  await saveFieldSelection(session.user.facilityId, params.tabKey, enabledFieldNames);
+  await saveFieldSelection(session.user.facilityId, params.tabKey, enabledFieldNames, session.user.id);
   return NextResponse.json({ ok: true });
 });
