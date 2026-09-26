@@ -47,6 +47,8 @@ model Facility {
   slug        String   @unique
   stateCode   String?
   countryCode String   @default("IN") // ISO 3166-1 alpha-2
+  // Date/measurement-unit formatting only — see src/domain/locale.ts. Not full i18n.
+  locale      String   @default("en-IN")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
