@@ -1,4 +1,4 @@
-// Resolves a FieldRef to a single patient's value for cohort aggregation — see docs/ANALYTICS_PLAN.md §2-§4.
+// Resolves a FieldRef to a single patient's value for cohort aggregation — see docs/ANALYTICS.md §2-§4.
 // Every function here is total: bad/missing data returns null rather than throwing, so the
 // aggregation layer can compute denominators from present values only (never partial-crash a query).
 
@@ -33,7 +33,7 @@ export function resolveRatioValue(ref: FieldRef, tabs: PatientTabs): number | nu
   }
 }
 
-// Multiselect absent-vs-"No" resolution rule: see docs/ANALYTICS_PLAN.md §3.
+// Multiselect absent-vs-"No" resolution rule: see docs/ANALYTICS.md §3.
 export function resolveCategoricalValue(ref: FieldRef, tabs: PatientTabs): string | null {
   switch (ref.kind) {
     case "stored": {

@@ -9,9 +9,9 @@ phased roadmap before inventing a new pattern.
 ## North Star
 
 The core goal of this project is a **strong, scalable foundation** —
-reliable, fault-tolerant, a great experience to use, and easy for a future
-collaborator (including a future instance of Claude with no memory of this
-conversation) to pick up and extend correctly on the first try. Shipping an
+reliable, fault-tolerant, a great experience to use, and easy for a new
+collaborator with no prior context on the project to pick up and extend
+correctly on the first try. Shipping an
 MVP feature set is completely fine; shipping it on top of a weak foundation
 is not. Every decision below exists in service of that, not as bureaucracy
 for its own sake.
@@ -82,7 +82,7 @@ should assume that trajectory without over-building for it today — see
   between a rigid dropdown and unrestricted text.
 - Every new field needs a deliberate `type`, a `validation` rule if the
   format matters, and a documented decision on whether it's `core` (see
-  `docs/INPUT_HARDENING_PLAN.md`'s pattern).
+  `docs/INPUT_VALIDATION.md`'s pattern).
 - Don't bake a specific locale/timezone assumption deeper into the domain
   layer — i18n isn't wired up yet, but don't make it harder to add later
   either (check `docs/SCALING_PLAN.md` §2 before adding date/number
@@ -125,7 +125,7 @@ should assume that trajectory without over-building for it today — see
   ever — that's what makes it unit-testable and safely reusable.
 - Document non-obvious decisions the way the existing docs do — a comment
   where the decision lives, or a `docs/*.md` file for anything bigger
-  (`ARCHITECTURE.md`, `ANALYTICS_PLAN.md`, `INPUT_HARDENING_PLAN.md`,
+  (`ARCHITECTURE.md`, `ANALYTICS.md`, `INPUT_VALIDATION.md`,
   `SCALING_PLAN.md`). A future contributor should be able to find "why"
   without re-deriving it.
 - Before adding a new architecture-level thing (a new model, a new

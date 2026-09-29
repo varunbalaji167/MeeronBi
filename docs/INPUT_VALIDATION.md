@@ -1,9 +1,10 @@
-# Input hardening — foundation + field-by-field audit
+# Input validation — foundation + field-by-field audit
 
-Status: **foundation built and applied to the clearest cases; full audit
-below for the rest.** This is deliberately structured so applying a
-"recommended" row later is a mechanical field-config edit using the pieces
-already built here — no new architecture, no back-and-forth.
+The reusable input-hardening foundation, plus a field-by-field audit of
+where it has been applied and where it is still recommended. The structure
+is deliberate: applying a "recommended" row later is a mechanical
+field-config edit using the pieces already built, needing no new
+architecture.
 
 ## Why this exists
 
@@ -18,7 +19,7 @@ closed/structured controls) and hardening the backend (reject/clean
 whatever the input tightening didn't prevent) are the same effort looked at
 from two ends, so they're done together here.
 
-## Foundation built this pass
+## The foundation
 
 These are the reusable pieces — build once, apply everywhere, nothing here
 needs revisiting when the next field gets tightened:
@@ -41,7 +42,7 @@ needs revisiting when the next field gets tightened:
      Thyroid/Reactive/ECHO tables, Ultrasound's Soft Markers/Doppler
      tables), and repeating (History's Obstetric History, Treatments'
      visit/course rows). Those last two previously got **zero**
-     sanitization of any kind — the biggest actual gap this pass closed.
+     sanitization of any kind — the largest gap this closed.
    - Rebuilds the record from the tab's own field list as an **allowlist**
      rather than patching the client's object in place, so a payload key
      that isn't a real field on that tab is simply never carried over.
@@ -69,7 +70,7 @@ needs revisiting when the next field gets tightened:
    field name collides with a top-level field name, but worth closing
    while touching this file).
 
-## Applied this pass
+## Applied
 
 | Tab | Field | Before | After | Why |
 |---|---|---|---|---|
@@ -130,7 +131,7 @@ recommended beyond the two converted above.
 | `indicationsOfCs` | `multiselect` | Keep. |
 | `pogOnDeliveryWeeks`, `babyWeightKg`, `apgarScore` | `number` + range | Keep. |
 | `dateOfDelivery`, `timeOfDelivery` | `date`/`time` | Keep. |
-| `cmf` (Congenital malformations) | `text` | **Recommended**: `select` + `allowOther` with a curated common list (none currently exist in `textPatterns.ts` — would need a small `COMMON_CONGENITAL_MALFORMATIONS` list added first). Left as free text this pass since a bad guess at "common" here is a clinical accuracy risk in a way a common-occupations list isn't — worth getting input from whoever owns the clinical requirements before curating it. |
+| `cmf` (Congenital malformations) | `text` | **Recommended**: `select` + `allowOther` with a curated common list (none currently exist in `textPatterns.ts` — would need a small `COMMON_CONGENITAL_MALFORMATIONS` list added first). Left as free text, since a bad guess at "common" here is a clinical accuracy risk in a way a common-occupations list isn't — worth getting input from whoever owns the clinical requirements before curating it. |
 | `hospitalNameAddress` | `textarea` | Keep — genuinely free text. |
 
 ### Robson

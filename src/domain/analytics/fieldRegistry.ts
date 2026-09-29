@@ -1,4 +1,4 @@
-// Builds the Analytics field picker's list by walking the tab configs — see docs/ANALYTICS_PLAN.md
+// Builds the Analytics field picker's list by walking the tab configs — see docs/ANALYTICS.md
 // §3 for the classification rules this implements. Nothing here talks to the database; it only
 // reads the static tab configs in domain/tabs, so the registry is always in sync with whatever
 // fields the forms actually collect.
@@ -17,10 +17,10 @@ function standardSegmentKeyFor(fieldName: string): keyof typeof STANDARD_SEGMENT
   return fieldName in STANDARD_SEGMENTS ? (fieldName as keyof typeof STANDARD_SEGMENTS) : undefined;
 }
 
-// Dates an entry, not a measurement in its own right — see docs/ANALYTICS_PLAN.md §3.
+// Dates an entry, not a measurement in its own right — see docs/ANALYTICS.md §3.
 const GESTATIONAL_AGE_COMPANION_FIELDS = new Set(["gestAgeWeeks", "pogWeeks"]);
 
-// A section with no date column can't resolve a time-series point — see docs/ANALYTICS_PLAN.md §3.
+// A section with no date column can't resolve a time-series point — see docs/ANALYTICS.md §3.
 function hasDateCompanion(fields: { type: FieldType }[]): boolean {
   return fields.some((f) => f.type === "date");
 }
@@ -51,7 +51,7 @@ function metaForField(tabKey: string, field: Pick<FieldConfig, "name" | "label" 
       ];
     case "multiselect":
       // A patient can pick more than one option, so a plain count-per-value would exceed 100% —
-      // each option becomes its own boolean-categorical sub-field instead (ANALYTICS_PLAN §3).
+      // each option becomes its own boolean-categorical sub-field instead (ANALYTICS.md §3).
       return (field.options ?? []).map((option) => ({
         ref: { kind: "multiselectOption", tabKey, fieldName: field.name, option },
         label: `${field.label} — ${option}`,

@@ -1,4 +1,4 @@
-// Analytics query validation + dispatch (docs/ANALYTICS_PLAN.md §2, §5). The six cohort-mode
+// Analytics query validation + dispatch (docs/ANALYTICS.md §2, §5). The six cohort-mode
 // branches live in cohortBranches.ts, the two time-series branches in timeSeriesBranches.ts —
 // kept out of this file so the privacy-critical suppression logic in each is reviewable on its own.
 
@@ -80,7 +80,7 @@ export function validateCohortQuery(
   return ok({ field, filter });
 }
 
-// Validates the query, then dispatches to the branch dictated by the decision matrix (docs/ANALYTICS_PLAN.md §2).
+// Validates the query, then dispatches to the branch dictated by the decision matrix (docs/ANALYTICS.md §2).
 export function aggregate(
   query: AnalyticsQuery,
   registry: AnalyticsFieldMeta[],
@@ -120,7 +120,7 @@ export function validateTimeSeriesQuery(
   return ok({ field, filter });
 }
 
-// Time-series mode (docs/ANALYTICS_PLAN.md §5): `data` is pre-loaded by the caller (analyticsService.ts).
+// Time-series mode (docs/ANALYTICS.md §5): `data` is pre-loaded by the caller (analyticsService.ts).
 export function aggregateTimeSeries(
   query: TimeSeriesQuery,
   registry: AnalyticsFieldMeta[],

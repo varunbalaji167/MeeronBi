@@ -3,12 +3,13 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/server/db/prisma";
 import { consumeToken } from "@/server/http/rateLimit";
+import { log } from "@/server/http/logger";
 
 const LOGIN_RATE_LIMIT = { limit: 5, windowMs: 60_000 };
 
-// `authorize()` below throws bare `Error` rather than `AppError`, as an exception to CLAUDE.md
-// rule 4: NextAuth's credentials provider only forwards `Error.message` to the client and never
-// passes through `withApiErrorHandling`, so the typed hierarchy has no effect here.
+// `authorize()` below throws bare `Error` rather than the typed `AppError` hierarchy: NextAuth's
+// credentials provider only forwards `Error.message` to the client and never passes through
+// `withApiErrorHandling`, so status codes and error codes would be discarded anyway.
 
 /** Rate-limits login attempts directly via `consumeToken` (NextAuth's authorize isn't wrapped by withRateLimit). */
 function rateLimitLogin(headers: Record<string, any> | undefined): void {
@@ -43,39 +44,50 @@ export const authOptions: NextAuthOptions = {
         rateLimitLogin(req?.headers);
         if (!credentials?.email || !credentials?.password) return null;
 
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email.toLowerCase().trim() },
-          include: { patient: true, researcherProfile: true },
-        });
-        if (!user) return null;
+        // Only errors we deliberately throw below (rate limit, pending/unapproved researcher) are meant to
+        // reach the client as-is; anything else (e.g. the DB being unreachable) is an infra failure, not a
+        // user-facing message, so it's caught and replaced before NextAuth forwards Error.message to the form.
+        try {
+          const user = await prisma.user.findUnique({
+            where: { email: credentials.email.toLowerCase().trim() },
+            include: { patient: true, researcherProfile: true },
+          });
+          if (!user) return null;
 
-        const valid = await bcrypt.compare(credentials.password, user.passwordHash);
-        if (!valid) return null;
+          const valid = await bcrypt.compare(credentials.password, user.passwordHash);
+          if (!valid) return null;
 
-        // Block sign-in for researchers not yet approved; thrown (not null) so the specific message reaches the client.
-        if (user.role === "RESEARCHER") {
-          if (user.researcherProfile?.status === "PENDING") {
-            throw new Error("Your researcher access request is still pending approval — you'll be notified once it's reviewed.");
+          // Block sign-in for researchers not yet approved; thrown (not null) so the specific message reaches the client.
+          if (user.role === "RESEARCHER") {
+            if (user.researcherProfile?.status === "PENDING") {
+              throw new Error("Your researcher access request is still pending approval — you'll be notified once it's reviewed.");
+            }
+            if (user.researcherProfile?.status !== "APPROVED") {
+              throw new Error("Your researcher access request was not approved. Contact the MeeronBi team if you have questions.");
+            }
           }
-          if (user.researcherProfile?.status !== "APPROVED") {
-            throw new Error("Your researcher access request was not approved. Contact the MeeronBi team if you have questions.");
+
+          await prisma.user.update({
+            where: { id: user.id },
+            data: { lastLoginAt: new Date() },
+          });
+
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name ?? user.email,
+            role: user.role,
+            patientId: user.patient?.id ?? null,
+            facilityId: user.facilityId,
+            researcherStatus: user.researcherProfile?.status ?? null,
+          };
+        } catch (err) {
+          if (err instanceof Error && (err.message.includes("pending approval") || err.message.includes("was not approved"))) {
+            throw err;
           }
+          log.error({ err: err instanceof Error ? err.stack ?? err.message : String(err) }, "Unhandled error in authorize()");
+          throw new Error("Something went wrong while signing in. Please try again shortly.");
         }
-
-        await prisma.user.update({
-          where: { id: user.id },
-          data: { lastLoginAt: new Date() },
-        });
-
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name ?? user.email,
-          role: user.role,
-          patientId: user.patient?.id ?? null,
-          facilityId: user.facilityId,
-          researcherStatus: user.researcherProfile?.status ?? null,
-        };
       },
     }),
   ],

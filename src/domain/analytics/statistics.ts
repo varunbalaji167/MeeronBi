@@ -1,4 +1,4 @@
-// Summary statistics for a Ratio field's values — see docs/ANALYTICS_PLAN.md §2's "Central
+// Summary statistics for a Ratio field's values — see docs/ANALYTICS.md §2's "Central
 // tendencies" cell. Callers are responsible for filtering to non-null/finite values first
 // (resolveValue.ts's resolvers already return null for anything that can't be included).
 

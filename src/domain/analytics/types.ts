@@ -1,4 +1,4 @@
-// Draft data shapes for the Analytics feature (see docs/ANALYTICS_PLAN.md). Not yet used by the running app.
+// Data shapes for the Analytics feature (see docs/ANALYTICS.md).
 
 /** How a field's values should be summarized. */
 export type AnalyticsDataType = "ratio" | "categorical";

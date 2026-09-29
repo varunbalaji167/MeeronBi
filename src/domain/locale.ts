@@ -1,7 +1,7 @@
 // Facility-level date/measurement-unit formatting. Deliberately not full i18n — no string
 // translation, no pluralization rules. Just enough that gestational-age/measurement display
 // isn't hardcoded to one region, so a second facility with different conventions doesn't need
-// this rewritten from scratch. See docs/FOUNDATION_PLAN.md Workstream C.
+// this rewritten from scratch. See docs/SCALING_PLAN.md §2.
 
 export type Locale = "en-IN" | "en-US";
 

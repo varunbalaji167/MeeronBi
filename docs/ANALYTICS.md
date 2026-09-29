@@ -1,10 +1,10 @@
 # Analytics — design reference
 
-Status: **implemented**. This document is the design record the shipped
-feature was built against — read it for the *why* behind the decision
-matrix, field classification, and disclosure-control rules; read the code
-(`src/domain/analytics/`, `src/server/analytics/`, `src/components/analytics/`)
-for current behavior.
+The design record the Analytics feature was built against. Read it for the
+*why* behind the decision matrix, field classification and
+disclosure-control rules; read the code (`src/domain/analytics/`,
+`src/server/analytics/`, `src/components/analytics/`) for current
+behavior.
 
 Source: `MeeronBi_Default_indicators_to_be_recorded.pdf`, pages 8-18
 ("Analytics" through the "Standard Segments" appendix).
@@ -209,9 +209,9 @@ hot fields the way `Delivery.deliveryMode`/`RobsonClassification
 1. Categorical × Categorical with an implied ratio measure: shipped as
    counts only (`categoryByCategory`/`categoryByRatio` in `aggregate.ts`)
    — no per-group-average variant was built for this pairing.
-2. `STANDARD_SEGMENTS.tsh`/`.bmi` hospital-configurability: not done for
-   v1 — still a hardcoded default. Revisit if a second facility's clinical
-   staff need different bands.
+2. `STANDARD_SEGMENTS.tsh`/`.bmi` hospital-configurability: resolved as a
+   hardcoded default rather than a per-facility setting. Revisit if a
+   second facility's clinical staff need different bands.
 3. Minimum cell-count suppression threshold: `MIN_CELL_SIZE` in
    `domain/analytics/disclosureControl.ts` — 5 for internal/researcher
    audiences, 10 for public.

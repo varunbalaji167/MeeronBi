@@ -33,7 +33,7 @@ function getDelegate(tabKey: string) {
   return delegates[modelKey as string] ?? null;
 }
 
-// Loads every COMPLETE row across `tabKeys` (drafts excluded — see docs/ANALYTICS_PLAN.md §7/§8),
+// Loads every COMPLETE row across `tabKeys` (drafts excluded — see docs/ANALYTICS.md §7/§8),
 // scoped to `facilityId` (omitted = every facility) and optionally one `patientId`.
 export async function loadCohortDataset({
   facilityId,

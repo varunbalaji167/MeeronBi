@@ -19,9 +19,9 @@ Free** — a drag-and-drop site builder. It cannot run a Node.js process
 or give you a real MySQL connection string, so this app cannot be
 deployed onto it, full stop. GoDaddy's *domain* (`eikhoi.net`) is still
 useful — you'll point its DNS at wherever the app actually runs (step 4).
-If a future session finds a different GoDaddy product has since been
-purchased (a VPS or dedicated server, specifically), skip to step 1 and
-treat it like any other Linux box.
+If a different GoDaddy product has since been purchased (a VPS or
+dedicated server, specifically), skip to step 1 and treat it like any
+other Linux box.
 
 ## 1. Pick where the app runs
 
@@ -39,14 +39,13 @@ Two realistic shapes; pick one deliberately rather than defaulting:
   instead of one, and Vercel's serverless functions mean the in-memory
   rate limiter (`src/server/http/rateLimit.ts`) silently stops working
   correctly across cold starts/multiple instances — that's the documented
-  Redis trigger (`docs/FOUNDATION_PLAN.md`'s "deliberately deferred"
-  list) arriving sooner than planned. Don't pick this option without also
-  swapping the rate limiter.
+  Redis trigger (`docs/SCALING_PLAN.md` §3) arriving sooner than planned.
+  Don't pick this option without also swapping the rate limiter.
 
 The rest of this doc assumes **Option A**, since that's what the existing
 foundation work (single-process rate limiter, `/api/health` for a load
-balancer that doesn't exist yet) was built against. If a future session
-picks Option B instead, revisit the rate limiter first.
+balancer that doesn't exist yet) was built against. If you pick Option B
+instead, revisit the rate limiter first.
 
 ## 2. Server prerequisites
 
@@ -102,8 +101,7 @@ copy of the seed script to create only the real accounts you need.
 
 ## 4. Point the domain here
 
-In GoDaddy's DNS management for `eikhoi.net` (**Domains → Manage → DNS**,
-the screen already reached during this conversation):
+In GoDaddy's DNS management for `eikhoi.net` (**Domains → Manage → DNS**):
 
 - Add/edit an **A record**: host `@`, value = the server's public IPv4
   address.
@@ -197,11 +195,11 @@ npm run build
 pm2 restart meeronbi
 ```
 
-## Housekeeping note for whoever executes this
+## Status of this guide
 
-Written by a Claude Code session with no live server or database
-connection available — every command above is traced by hand against
-Next.js/Prisma/pm2/nginx/certbot's documented behavior, not executed.
-Treat it as a strong first draft: sanity-check each step as you go,
-especially version-specific flags, rather than assuming it's been
-verified end-to-end.
+This guide was written ahead of the first real deployment: every command
+is derived from the documented behavior of Next.js, Prisma, pm2, nginx and
+certbot, but the sequence has not yet been executed end to end against a
+live server. Treat it as a reviewed first draft — sanity-check each step as
+you go, especially version-specific flags, and correct this document as you
+work through it.

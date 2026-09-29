@@ -15,7 +15,7 @@ just setup + a feature tour.
 | **Super Admin** (MeeronBi team) | Yes | Everything, across every facility — no facility-scoping applies. Also reviews researcher access requests at `/admin/researchers`. |
 | **Admin** (hospital staff) | Yes | Full create/read/update/delete on every patient record, all 7 tabs — scoped to their own facility only |
 | **Patient** | Yes | Read-only view of *their own* record only |
-| **Researcher** | Yes, once approved | Analytics-only access (once built — see `docs/ANALYTICS_PLAN.md`), never per-patient records. Request access at `/researcher-access`; a Super Admin reviews it. |
+| **Researcher** | Yes, once approved | Aggregate analytics only (`/researcher`) — never per-patient records. Request access at `/researcher-access`; a Super Admin reviews it. |
 | **General public** | No | `/public/trends` — aggregate, anonymized statistics only. No individual patient data is ever exposed on this route. |
 
 Route protection is enforced in `src/middleware.ts` (redirects unauthenticated
@@ -62,6 +62,13 @@ verify facility isolation actually works rather than just trusting it.
   (clears just that tab), and the patient header has a separate "Delete
   entire patient" that removes the patient and every tab's data, with its
   own confirmation dialog.
+- **Analytics** — cohort breakdowns and repeated-measure time series over any
+  field in the registry, at `/admin/analytics` for staff and `/researcher` for
+  approved researchers. Results pass through statistical disclosure control
+  (`src/domain/analytics/disclosureControl.ts`), which suppresses small cells
+  by audience tier so aggregates can't be narrowed down to an individual;
+  every query is audit-logged. Design reference:
+  [`docs/ANALYTICS.md`](docs/ANALYTICS.md).
 
 ## Patient portal login — how it works
 
@@ -171,9 +178,12 @@ adding validation, etc.) — the short version is: **domain config lives in
 - The patient-portal login is created manually by staff per patient. For a
   self-service flow, add a signed invite-link/email step instead of typing a
   temporary password directly.
-- Add rate limiting / audit logging on the admin API routes before deploying
-  in a real clinical setting, and confirm the deployment meets your local
-  health-data privacy regulations (e.g. access logging, encryption at rest).
+- Mutating writes are audit-logged to the `AuditLog` table
+  (`src/server/http/audit.ts`), and rate limiting is applied to sign-in and the
+  unauthenticated routes (`src/server/http/rateLimit.ts`). The admin API routes
+  are not yet rate-limited; add that before deploying in a real clinical
+  setting, and confirm the deployment meets your local health-data privacy
+  regulations (e.g. access logging, encryption at rest).
 - Phone validation uses a per-country expected-length table (India/US = 10
   digits, China = 11, etc. — see `src/domain/phone.ts`), enforced both in the
   browser (hard character cap) and on the server (sanitized on every save,

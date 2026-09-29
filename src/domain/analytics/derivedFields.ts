@@ -1,4 +1,4 @@
-// Fields computed at query time rather than stored directly — see docs/ANALYTICS_PLAN.md §4-§5.
+// Fields computed at query time rather than stored directly — see docs/ANALYTICS.md §4-§5.
 
 import { computeGestationalAge } from "@/domain/gestationalAge";
 import { TrimesterBucket } from "./types";
@@ -10,7 +10,7 @@ function completedYears(from: Date, to: Date): number {
   return years;
 }
 
-// Age in completed years as of `(dateOfDelivery ?? edd ?? usgEdd)` — see docs/ANALYTICS_PLAN.md §4.
+// Age in completed years as of `(dateOfDelivery ?? edd ?? usgEdd)` — see docs/ANALYTICS.md §4.
 export function computeAge(
   input: { dob: string | null | undefined; dateOfDelivery?: string | null; edd?: string | null; usgEdd?: string | null }
 ): number | null {
@@ -26,14 +26,14 @@ export function computeAge(
   return completedYears(dob, reference);
 }
 
-// `weightFirstVisitKg` is a proxy for pre-pregnancy weight — see the caveat in docs/ANALYTICS_PLAN.md §4.
+// `weightFirstVisitKg` is a proxy for pre-pregnancy weight — see the caveat in docs/ANALYTICS.md §4.
 export function computeBmi(heightCm: number | null | undefined, weightFirstVisitKg: number | null | undefined): number | null {
   if (!heightCm || !weightFirstVisitKg || heightCm <= 0 || weightFirstVisitKg <= 0) return null;
   const heightM = heightCm / 100;
   return Math.round((weightFirstVisitKg / (heightM * heightM)) * 10) / 10;
 }
 
-// Which pregnancy-timeline bucket a dated entry falls into relative to LMP — see docs/ANALYTICS_PLAN.md §5.
+// Which pregnancy-timeline bucket a dated entry falls into relative to LMP — see docs/ANALYTICS.md §5.
 export function bucketTrimester(lmp: string | null | undefined, entryDate: string | Date): TrimesterBucket | null {
   if (!lmp) return null;
   const lmpDate = new Date(lmp);

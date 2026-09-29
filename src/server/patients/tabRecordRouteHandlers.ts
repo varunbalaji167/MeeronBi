@@ -8,9 +8,8 @@ import { getIncompleteReasons, getFieldLevelErrors } from "@/domain/validation";
 import { NotFoundError, ValidationError } from "@/server/http/errors";
 import { parseJson } from "@/server/http/parseJson";
 
-// Shape-only check: `data`'s field-by-field content is sanitized by sanitizeTabData
-// inside saveTabRecord, per CLAUDE.md rule 3 — this just rejects a malformed body
-// (wrong type for `data`/`status`) before it reaches that layer.
+// Shape-only check: `data`'s field-by-field content is sanitized by sanitizeTabData inside
+// saveTabRecord, so this only rejects a malformed body before it reaches that layer.
 const tabSaveBodySchema = z.object({
   data: z.record(z.unknown()),
   status: z.enum(["DRAFT", "COMPLETE"]).optional(),

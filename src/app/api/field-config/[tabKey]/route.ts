@@ -12,7 +12,8 @@ const fieldSelectionBodySchema = z.object({
 });
 
 // Admin-only: facility-wide field selection preference for a tab.
-// TODO: for SUPER_ADMIN this reads/writes HQ's own field prefs, not a chosen facility's — out of scope for now.
+// Known limitation: a SUPER_ADMIN reads and writes their own facility's preferences here, not those
+// of an arbitrary facility — selecting a target facility would need a facility parameter on both verbs.
 export const GET = withApiErrorHandling(async (_req: NextRequest, { params }: { params: { tabKey: string } }) => {
   const session = await requireAdminSession();
   if (!getTabByKey(params.tabKey)) throw new NotFoundError("Unknown tab.");

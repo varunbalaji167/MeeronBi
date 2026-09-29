@@ -1,4 +1,4 @@
-// Time-series mode's two branches (docs/ANALYTICS_PLAN.md §5), split out of aggregate.ts's dispatch.
+// Time-series mode's two branches (docs/ANALYTICS.md §5), split out of aggregate.ts's dispatch.
 
 import {
   AnalyticsFieldMeta,

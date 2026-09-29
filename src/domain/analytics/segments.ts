@@ -1,5 +1,5 @@
 // Buckets a Ratio field's values into brackets — a Standard Segment when one is defined for the
-// field, else a generated equal-width histogram. See docs/ANALYTICS_PLAN.md §2 and §6.
+// field, else a generated equal-width histogram. See docs/ANALYTICS.md §2 and §6.
 
 import { AnalyticsFieldMeta, SegmentBracket, SegmentedBreakdown, STANDARD_SEGMENTS } from "./types";
 

@@ -63,8 +63,7 @@ one facility, low volume, still ramping up — picking a specific
 RPO/RTO/retention number now would be a guess dressed up as a decision.
 What's written below instead is *how a backup gets wired into this
 codebase once a real number and provider are chosen*, so that choice is a
-config change, not a redesign, whenever a future session (or a
-"we now serve N hospitals" trigger) makes it.
+config change rather than a redesign once a hosting decision is made.
 
 ## (d) How backups plug into this codebase, once chosen
 
@@ -91,9 +90,8 @@ against section (a)'s questions.
   project (see the deployment runbook's "rotate every default secret"
   step): never committed, injected via the host's env/secrets mechanism
   only.
-- **Restore-test verification:** `docs/FOUNDATION_PLAN.md`'s Workstream B
-  landed `AuditLog` specifically so a restore can be checked against more
-  than "the command exited 0" — after a scratch restore, `SELECT COUNT(*)
+- **Restore-test verification:** `AuditLog` exists specifically so a
+  restore can be checked against more than "the command exited 0" — after a scratch restore, `SELECT COUNT(*)
   FROM AuditLog` plus a spot-check of the most recent rows against what's
   expected is a concrete, cheap correctness check that doesn't require a
   separate tool.
@@ -107,6 +105,5 @@ against section (a)'s questions.
 
 ---
 
-Related: `docs/SCALING_PLAN.md`'s Phase 0 checklist tracks "documented
-backup/restore policy" against this file; `docs/NEXT_STEPS.md` has the
-current overall done/not-done state this file's `TODO` fits into.
+Related: `docs/SCALING_PLAN.md` lists a documented backup and restore
+policy as a Phase 0 item, and points here for it.

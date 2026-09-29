@@ -1,6 +1,5 @@
 // Sentry init for the browser bundle. Hand-written (not via `npx
-// @sentry/wizard`, which needs an interactive login) — see
-// docs/FOUNDATION_PLAN.md Workstream A #3. Env-var-gated: with no
+// @sentry/wizard`, which needs an interactive login). Env-var-gated: with no
 // SENTRY_DSN set, `Sentry.init` receives `dsn: undefined` and the SDK
 // no-ops (no network calls, no console noise) — local dev is unaffected.
 import * as Sentry from "@sentry/nextjs";

@@ -57,10 +57,23 @@ src/
       robson.ts             Tab 6 config + the Robson classification algorithm
       treatments.ts         Tab 7 config
       index.ts              Barrel: allTabs[], getTabByKey() — import tabs from HERE
+    analytics/
+      types.ts             Analytics result shapes (breakdowns, cross-tabs, series)
+      fieldRegistry.ts     Which fields are analyzable, and how each is classified
+      disclosureControl.ts Small-cell suppression (k-anonymity) by audience tier
+      statistics.ts        Summary statistics over resolved values
+      segments.ts          Bucketing continuous values into brackets
+      resolveValue.ts      Pulls one field's value out of a stored tab record
+      derivedFields.ts     Computed fields (age, gestational age) exposed to analytics
+      auditPayload.ts      Builds the audit entry describing an analytics query
     validation.ts          Generic engine: validateFieldValue/validateAllFields/getIncompleteReasons
     fieldVisibility.ts     "Customize fields" resolution logic
     phone.ts               International PhoneValue type + validation
     countryCodes.ts        ITU calling-code reference data
+    gestationalAge.ts      Gestational-age math + recommended scan windows
+    locale.ts              Date/measurement formatting per Facility.locale
+    textPatterns.ts        Shared free-text normalization patterns
+    result.ts              Result<T,E> type used across server/analytics
     index.ts               Top-level barrel re-exporting all of the above
 
   server/                 Server-only: DB, auth, business services
@@ -68,7 +81,7 @@ src/
     http/withApiErrorHandling.ts  Wraps every route handler so thrown errors become valid JSON, never an empty body
     auth/
       authOptions.ts         NextAuth config (providers, session/jwt callbacks)
-      guards.ts              requireAdmin/requirePatient/assertPatientRecordAccessible — all facility-scoped, see below
+      guards.ts              Session guards per role, plus requireAdminSessionForPatient/assertPatientRecordAccessible — facility-scoped, see below
     facilities/
       facilityRepository.ts      Resolves the tenant for contexts with no session (currently just /public/trends)
     patients/
@@ -79,12 +92,24 @@ src/
       fieldPreferenceService.ts  Reads/writes a hospital's field-visibility choices, scoped per facility
     trends/
       trendsRepository.ts       Aggregate-only queries for the public trends page, scoped to one facility
+    analytics/
+      analyticsService.ts       Entry point for cohort/time-series queries; returns Result<T,E>
+      analyticsRepository.ts    Facility-scoped reads backing analytics
+      aggregate.ts              Aggregation over resolved field values
+      cohortBranches.ts         Cohort query branches by field classification
+      timeSeriesBranches.ts     Repeated-measurement query branches
+      analyticsAudit.ts         Writes an AuditLog row per analytics query
+      errors.ts                 Analytics-specific typed errors
+    researchers/
+      researcherAccessService.ts  Request -> PENDING -> approve/reject flow
 
   app/                    Next.js App Router — routing glue only
     admin/                 Hospital staff area (sidebar shell, patient list, per-patient tabs)
     patient/               Patient portal area (sidebar shell, read-only record view)
+    researcher/            Approved-researcher analytics area
+    researcher-access/     Public form for requesting researcher access
     public/trends/         No-login aggregate stats page
-    login/                 Shared login page (role-hinted via ?role=admin|patient)
+    login/                 Shared login page (role-hinted via ?role=admin|patient|researcher)
     api/                   REST-ish route handlers — each one is a thin controller
 
   components/
@@ -95,6 +120,7 @@ src/
       FieldInput.tsx         Renders one field by type (text/select/phone/...)
       FieldCustomizer.tsx    The "Customize fields" checklist UI
       sections/              PlainSection / GridSection / RepeatingSection renderers
+    analytics/              Analytics UI: field/filter/patient pickers, cohort and time-series panels
     patient/                Feature-specific: only meaningful in "a patient's record" context
       TabRecordView.tsx       Loads a tab's data, resolves visible fields, renders DynamicForm
       PatientHeader.tsx, PatientPortalAccess.tsx, PatientTabNav.tsx, CareTimeline.tsx
@@ -113,6 +139,9 @@ src/
   lib/
     apiClient.ts            ApiError + friendlyErrorMessage() — the client-side
                              counterpart to server/http/errors.ts (see below)
+    suspenseResource.ts     Small promise-cache helper for Suspense boundaries
+
+  middleware.ts           Route-level auth redirects (re-checked server-side in guards.ts)
 ```
 
 ---
@@ -317,70 +346,52 @@ This is enforced in **three places**, deliberately redundant:
 
 ---
 
-## Cross-checked against the source spec (`MeeronBi_Default_indicators_to_be_recorded.pdf`)
+## How the source spec maps onto this codebase
 
-The original prototype's field list came from a PDF walkthrough of a Google
-Apps Script mockup, one page per tab (pages 1-7, before its Analytics
-pages), each screenshot annotated with red dots marking "default indicators
-to be recorded" — the same concept this codebase calls `core` (see Field
-visibility above). A field-by-field pass against those screenshots (Sept
-2026) found and fixed several drifts:
+The field list originates in a PDF walkthrough of the Google Apps Script
+prototype (`MeeronBi_Default_indicators_to_be_recorded.pdf`), one page per
+tab, each screenshot annotated with red dots marking "default indicators to
+be recorded" — the same concept this codebase calls `core` (see Field
+visibility above). `core` flags are kept aligned with those annotations.
+Four tabs needed a mechanism beyond a simple dot-to-`core` mapping, and
+those decisions are the ones worth knowing:
 
-- **Personal**: `edd`/`heightCm` were `core` but carry no red dot in the
-  spec (EDD is a greyed-out derived field there); `usgEdd`,
-  `weightLastVisitKg`, `religion`, `profession`, `highestEducation`,
-  `spouseName`, `address`, `cityTown`, `district`, `pin` were missing
-  `core` despite having one. Corrected both directions.
-- **History**: same kind of correction (`dateOfWedding`, `infertilityType`,
-  `conceptionType`, `noCesareanDelivery`, `noVaginalDelivery`,
-  `lastChildbirth`, `noSponAbortions` added; `medicalHistory`,
-  `pregnancyComplications` removed). More substantially, **Obstetric
-  History** was a hardcoded 6-column grid (`fixedCount: 6`); the spec's
-  page annotates it as "G1 [only] is default — from G2 to G6 or G10, allow
-  users to add via an 'Add Gravida' button", so `RepeatingSectionConfig`
-  grew a `transposed`/`minCount`/`maxCount` shape (replacing `fixedCount`
-  entirely — it had no other users) and `RepeatingSection.tsx` grew a
+- **Obstetric History is dynamic, not a fixed grid.** The spec annotates it
+  as "G1 [only] is default — from G2 to G6 or G10, allow users to add via an
+  'Add Gravida' button", so `RepeatingSectionConfig` carries a
+  `transposed`/`minCount`/`maxCount` shape and `RepeatingSection.tsx` has a
   matching dynamic-column render path.
-- **Investigation**: the spec's caption reads "Investigations are
-  mandatory" and nearly every field on that page carries a red dot — so
-  every plain-section field is now `core: true`. One side effect worth
-  knowing: this tab no longer has a "Customize fields" button at all
-  (`isCustomizable` returns false once nothing is left to hide), which is
-  the correct behavior, not a bug.
-- **Ultrasound**: the spec's page has *zero* red dots, but a different,
-  heavily-annotated instruction instead — "Auto select for display using
-  LMP date", attached to the NT Scan, Anomaly Scan, Uterine Artery Doppler,
-  and pre-delivery Doppler sections with specific textbook gestational-age
-  windows (e.g. NT scan at 11w0d-13w6d). Read this as "this tab uses a
-  different display-timing mechanism instead of the shown-by-default
-  split" rather than "nothing here is default" — stripping `core` to
-  literally match zero dots would have emptied the tab's default view
-  entirely, a regression the spec almost certainly didn't intend. Instead,
-  added `domain/gestationalAge.ts` (pure LMP → gestational-age math) and a
-  `recommendedWindow` on the relevant `SectionConfig`/`GridSectionConfig`
-  entries, rendered as an informational badge (`GestationalWindowBadge`)
-  computed from the Personal tab's LMP — fetched specifically for this tab
-  in `TabRecordView` (the first genuinely cross-tab read in this app).
-  Deliberately advisory only, never a hide/disable: a scan legitimately
-  happening outside its textbook window must never be blocked from being
-  recorded.
-- **Delivery**: also zero red dots, caption "Active only at the delivery
-  time — Normal delivery is 37-40 weeks, premature before 37, late after
-  40". Left `core` alone (it's already aligned with `requiredFields`,
-  which must stay `core` regardless of what a spec page shows, or a
-  required field could be hidden via Customize and Mark Complete would
-  become unreachable — see `delivery.ts`'s comment). Added
-  `classifyDeliveryTiming()`, shown live next to the form the same way
-  Robson's classification result is.
-- **Robson**: already fully compliant. Its "user has to click Classify
-  before saving" note is deliberately *not* implemented literally — this
-  app auto-computes and live-displays the classification instead (see
-  `robsonResult` in `TabRecordView`) and already blocks **Mark Complete**
-  until it resolves, which achieves the same guarantee without adding a
-  manual step or (worse) blocking **Save as Draft**, which nothing in this
-  app is allowed to do.
-- **Treatments**: already fully compliant — field names, order, and the
-  row-per-visit/row-per-course layout all matched.
+- **Every plain-section field on Investigation is `core`.** The spec's
+  caption reads "Investigations are mandatory" and nearly every field on
+  that page carries a dot. One consequence worth knowing: this tab has no
+  "Customize fields" button, because `isCustomizable` returns false once
+  nothing is left to hide. That is intended behavior, not a bug.
+- **Ultrasound uses gestational-age windows instead of `core` defaults.**
+  That page carries zero dots but a different instruction — "Auto select for
+  display using LMP date" — attached to the NT Scan, Anomaly Scan, Uterine
+  Artery Doppler and pre-delivery Doppler sections, with specific textbook
+  windows (NT scan at 11w0d–13w6d, and so on). It is read as "this tab uses
+  a different display-timing mechanism", not "nothing here is default";
+  stripping `core` to literally match zero dots would have emptied the tab's
+  default view. `domain/gestationalAge.ts` holds the pure LMP-to-gestational
+  -age math, and a `recommendedWindow` on the relevant
+  `SectionConfig`/`GridSectionConfig` entries renders as an advisory
+  `GestationalWindowBadge`, computed from the Personal tab's LMP and fetched
+  for this tab in `TabRecordView` — the one genuinely cross-tab read in the
+  app. The badge is advisory only and never hides or disables a section: a
+  scan legitimately happening outside its textbook window must still be
+  recordable.
+- **Delivery keeps its `core` set aligned with `requiredFields`.** A
+  required field must stay `core` regardless of what a spec page shows —
+  otherwise it could be hidden via Customize, making Mark Complete
+  unreachable (see `delivery.ts`'s comment). `classifyDeliveryTiming()`
+  displays live next to the form, the same way Robson's result does.
+- **Robson auto-computes rather than gating on a Classify button.** The
+  spec describes the user clicking Classify before saving; this app
+  live-displays the classification (`robsonResult` in `TabRecordView`) and
+  blocks **Mark Complete** until it resolves. That achieves the same
+  guarantee without a manual step, and without blocking **Save as Draft**,
+  which nothing in this app is allowed to do.
 
 ---
 
@@ -582,20 +593,19 @@ Next's inference, so the choice reads as a decision, not an accident:
 - **Purely decorative elements** (connecting lines, the active-nav accent
   bar) are `aria-hidden="true"` so they don't clutter screen-reader output.
 
-
+### Tailwind content glob
 
 `tailwind.config.ts` scans `content: ["./src/**/*.{js,ts,jsx,tsx,mdx}"]` —
-**one catch-all glob**, not a list of specific folders. This used to list
-only `src/app/**` and `src/components/**`, which meant `src/context/ToastContext.tsx`
-(added later, during the layered-architecture restructure) was never
-scanned. Any Tailwind class used in an unscanned file is silently dropped
-from the compiled CSS — not an error, just absent — which is exactly what
-made every toast notification invisible: the toast `<div>` rendered in the
-DOM, but with none of its `fixed`/`top-4`/`z-[60]`/etc. classes actually
-defined anywhere, so it had zero effective styling. If you ever add a new
-top-level folder under `src/` that renders JSX with Tailwind classes, this
-catch-all glob already covers it — don't narrow it back down to a folder
-list.
+**one catch-all glob**, not a list of specific folders. Keep it that way.
+
+A Tailwind class used in a file outside the glob is silently dropped from
+the compiled CSS: not an error, just absent. When the glob listed only
+`src/app/**` and `src/components/**`, `src/context/ToastContext.tsx` fell
+outside it, and every toast rendered in the DOM with none of its
+`fixed`/`top-4`/`z-[60]` classes defined — visually invisible, with nothing
+in the build to indicate why. The catch-all already covers any new
+top-level folder under `src/`; narrowing it back to a folder list
+reintroduces that failure mode.
 
 ### MRD/CR No. uniqueness
 
@@ -643,13 +653,13 @@ the gap/overlap comes back.
 
 ### Stale sessions after a database reset
 
-Sessions are signed JWTs (see the "Auth architecture" note above) — fast,
+Sessions are signed JWTs (see `server/auth/authOptions.ts`) — fast,
 and never re-prompt for login on navigation, but also never re-checked
 against the database by default. If you reset or reseed the database (a
 new `prisma migrate reset`, or re-running seed against a fresh DB) while a
 browser still holds an old session cookie, that cookie references a user id
-that no longer exists. `requireAdmin()`/`requirePatient()`
-(`server/auth/guards.ts`) explicitly check the session's user id still
+that no longer exists. The session guards in `server/auth/guards.ts`
+explicitly check the session's user id still
 exists and return a clear 401 ("please sign out and sign in again") instead
 of letting a stale session reach a database write, where it would otherwise
 surface as a confusing foreign-key violation (e.g. `Patient.createdById`).
@@ -657,19 +667,25 @@ If you ever hit that FK error directly instead of the clean 401, it likely
 means a new write path was added that skips these guards — every route that
 writes data must go through one of them.
 
-## Testing strategy (not yet implemented, but this is where it goes)
+## Testing strategy
 
-Nothing in this codebase has automated tests yet, but the layering above is
-specifically what makes them cheap to add later:
+The layering above is what keeps the test suite cheap to run: it needs no
+database, no HTTP server and no React renderer. Tests are written with Vitest
+and colocated as `*.test.ts` next to the source. `npm test` runs the suite and
+CI enforces it on every PR (`.github/workflows/ci.yml`).
 
-- **`domain/`** is the highest-value target — pure functions, no mocking
-  required. `computeRobsonGroup()`, `validateAllFields()`,
-  `resolveVisibleFieldNames()`, `validatePhoneValue()` could each get a
-  `*.test.ts` file colocated next to the source (e.g.
-  `domain/tabs/robson.test.ts`) using any standard runner (Vitest/Jest).
-- **`server/`** services/repositories are the next-highest value — they need
-  a test database but no HTTP or React setup (e.g. verify
-  `setPatientPortalAccess` actually refuses a duplicate email).
-- **`app/api/**/route.ts`** and React components are lowest priority to
-  automate first; they're thin enough that manual verification (or
-  integration/e2e tests later) covers them reasonably well.
+- **`domain/`** is the primary target — pure functions, no mocking required.
+  `computeRobsonGroup()`, `validateAllFields()`, `resolveVisibleFieldNames()`
+  and `validatePhoneValue()` each have a colocated test file, as does every
+  module under `domain/analytics/`.
+- **`server/`** modules with no database dependency are unit-tested the same
+  way: the HTTP helpers (`parseJson`, `rateLimit`, `logger`, `audit`,
+  `withApiErrorHandling`), the typed error hierarchies, and analytics
+  aggregation.
+- **Repositories, route handlers and React components** are deliberately not
+  unit-tested; they need a live database or a DOM, and they are thin enough
+  that the logic worth asserting has already been pushed down into the two
+  layers above.
+
+See `docs/TESTING.md` for the full coverage boundary and the reasoning behind
+it.

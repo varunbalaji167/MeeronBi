@@ -1,87 +1,88 @@
 # Testing strategy
 
-Status: **a real domain/ unit test suite now exists** — the first item on
-`docs/SCALING_PLAN.md` Phase 0's checklist. Run it with:
-
 ```bash
 npm install
-npm test          # single run
+npm test            # single run
 npm run test:watch  # re-runs on file change, for active development
 ```
 
-Also runs automatically on every push and pull request via GitHub Actions
+The suite also runs on every push and pull request via GitHub Actions
 (`.github/workflows/ci.yml`), alongside a lint pass and a full-project
-`tsc --noEmit` typecheck — the typecheck in particular catches classes of
-bugs (a wrong Prisma field name, a mismatched prop type) outside what the
-domain/-only test suite below reaches.
+`tsc --noEmit` typecheck. The typecheck catches a class of bugs the unit
+tests deliberately don't reach — a wrong Prisma field name, a mismatched
+prop type — so the two are complementary rather than redundant.
 
-## What's tested, and why this is "optimal" rather than exhaustive
+## Scope
 
-Every test lives under `src/domain/` (as `*.test.ts`, colocated next to the
-file it tests — `domain/tabs/robson.ts` → `domain/tabs/robson.test.ts`),
-because `domain/` is **pure, framework-free TypeScript**: no React, no
-Next.js, no Prisma, no network, no filesystem (see `docs/ARCHITECTURE.md`).
-That's what makes it possible to test with zero mocking and zero setup
-cost — and it's exactly the layer where a silent bug is most expensive,
-since it's the layer everything else (API routes, the UI, Analytics)
-builds on without re-checking.
+Tests are written with Vitest and colocated next to the file they cover
+(`domain/tabs/robson.ts` → `domain/tabs/robson.test.ts`). The suite covers
+two layers, both chosen because they run with **zero mocking and zero
+setup**: no database, no HTTP server, no DOM.
 
-**Covered, deliberately:**
+**`domain/` — pure, framework-free logic.** No React, Next.js, Prisma,
+network or filesystem (see `docs/ARCHITECTURE.md`). This is the layer where
+a silent bug is most expensive, since everything else builds on it without
+re-checking:
 
 - **`validation.ts`** — `sanitizeTabData` (the allowlist rebuild every save
-  goes through — the security boundary), `validateFieldValue`,
+  passes through, and the security boundary), `validateFieldValue`,
   `getIncompleteReasons`/`getFieldLevelErrors`. The highest-value target in
-  the whole codebase to have tests for: it's the newest, most complex, and
-  most security-critical logic here.
+  the codebase: the most complex and most security-critical logic here.
 - **`tabs/robson.ts`** — `computeRobsonGroup`, the WHO Ten-Group
   Classification algorithm. One test per real Robson group, so reading the
-  test file *is* reading the clinical spec this implements.
-- **`analytics/disclosureControl.ts`** — the statistical
-  de-identification logic. Tested against the source spec's own real
-  example (`Thoubal: n=1`) rather than an arbitrary number, so it's
-  obvious *why* each assertion exists.
+  test file *is* reading the clinical spec it implements.
+- **`analytics/*`** — the full module set: `disclosureControl` (statistical
+  de-identification, tested against the source spec's own `Thoubal: n=1`
+  example rather than an arbitrary number), plus `segments`, `statistics`,
+  `fieldRegistry`, `resolveValue`, `derivedFields` and `auditPayload`.
 - **`gestationalAge.ts`**, **`fieldVisibility.ts`**, **`phone.ts`**,
-  **`tabs/delivery.ts`** — the other pieces of domain logic with real
-  branching behavior a regression could silently break.
-- **`result.ts`**, **`textPatterns.ts`** — light, intentionally short:
-  documenting the contract, not exhaustively enumerating cases, because
-  there's no complex branching logic in either to actually regress.
+  **`tabs/delivery.ts`** — the remaining domain logic with real branching
+  behavior a regression could silently break.
+- **`result.ts`**, **`textPatterns.ts`**, **`locale.ts`** — intentionally
+  light: documenting the contract, not enumerating cases, because there is
+  no complex branching in any of them to regress.
 
-**Deliberately NOT covered here, and why that's the right call, not a gap
-to feel bad about:**
+**`server/` modules with no database dependency.** These need no test
+container, so they are unit-tested alongside `domain/`:
 
-- **Library internals** (Prisma, NextAuth, Next.js itself, recharts, ...).
-  They have their own test suites; re-testing that `Array.prototype.filter`
-  works is exactly the kind of "100% coverage" busywork that adds
-  maintenance cost with zero chance of ever catching a real bug.
-- **`server/`** (repositories, guards, API routes). This is where the
-  *next* test-writing effort should go, but it needs a real (or
-  test-container) database — a genuinely different, heavier kind of test
-  (integration, not unit) that shouldn't block or dilute the domain/ suite.
-  `docs/ARCHITECTURE.md`'s testing-strategy note already flags this as the
-  second-highest priority, after domain/.
-- **React components.** Lowest priority to automate, per that same note —
-  thin enough that manual verification (or real end-to-end tests later)
-  covers them reasonably well for now, and component testing needs jsdom +
-  Testing Library, a meaningfully bigger setup investment than the
-  zero-config domain/ suite above.
-- **The 7 tab config files themselves** (`personal.ts`, `investigation.ts`,
-  ...). These are data, not logic — there's nothing to assert beyond "does
-  this object have this key," which isn't a meaningful test. Where a real
-  tab config IS used in a test (`fieldVisibility.test.ts` checks
-  `isCustomizable(investigationTab)`), it's because that specific,
-  previously-made decision ("Investigation has nothing left to customize")
-  is exactly the kind of thing worth protecting from an accidental
-  regression — not because the config itself needed testing.
+- The HTTP helpers — `parseJson`, `rateLimit`, `logger`, `audit`,
+  `withApiErrorHandling`.
+- The typed error hierarchies — `server/auth/errors.ts`,
+  `server/patients/errors.ts`.
+- Analytics aggregation — `aggregate.ts`, `analyticsService.ts`.
+- Facility provisioning and patient facility-scoping
+  (`patientScope.test.ts`), which encode the tenant boundary.
 
-## Adding a test for new domain logic
+## Out of scope
 
-Colocate it (`domain/foo.ts` → `domain/foo.test.ts`), import from
-`vitest`, and follow the existing files' shape: `describe` blocks named
-after the function, `it` blocks whose full sentence explains *why* that
-behavior matters, not just *what* the assertion checks. A test file should
-be readable as a description of the feature on its own, not just a
-pass/fail gate — that's a deliberate choice here, not a style nitpick: the
-gestational-age and Robson test files in particular are written so that
-reading them top to bottom teaches you the actual clinical logic, not just
-"this function returns 5 when given these six magic strings."
+- **Library internals** (Prisma, NextAuth, Next.js, recharts). They have
+  their own suites; re-testing them adds maintenance cost with no realistic
+  chance of catching a bug in this codebase.
+- **Repositories and route handlers that need a live database.** These
+  require a real or containerized MySQL — a heavier integration-test setup
+  that would slow the suite from "runs in seconds with no config" to
+  "needs infrastructure". The logic worth asserting has deliberately been
+  pushed down into `domain/` and the pure `server/` modules above instead.
+- **React components.** Component testing needs jsdom plus Testing Library,
+  a meaningfully larger setup investment. The components are thin enough
+  that the logic worth protecting already lives in the tested layers.
+- **The 7 tab config files** (`personal.ts`, `investigation.ts`, ...).
+  These are data, not logic — there is nothing to assert beyond "does this
+  object have this key". Where a real tab config *is* used in a test
+  (`fieldVisibility.test.ts` asserting `isCustomizable(investigationTab)`),
+  it is because that specific decision — Investigation has nothing left to
+  customize — is worth protecting from an accidental regression, not
+  because the config needed testing.
+
+## Adding a test
+
+Colocate it next to the source, import from `vitest`, and follow the
+existing files' shape: `describe` blocks named after the function, and `it`
+blocks whose full sentence explains *why* the behavior matters, not just
+what the assertion checks.
+
+A test file should read as a description of the feature, not only a
+pass/fail gate. That is a deliberate convention here: the gestational-age
+and Robson files in particular are written so that reading them top to
+bottom teaches the underlying clinical logic, rather than showing that a
+function returns `5` for six magic strings.

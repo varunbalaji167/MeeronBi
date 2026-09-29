@@ -1,4 +1,4 @@
-// The six cohort-mode branches (docs/ANALYTICS_PLAN.md §2), split out of aggregate.ts's dispatch
+// The six cohort-mode branches (docs/ANALYTICS.md §2), split out of aggregate.ts's dispatch
 // so the privacy-critical suppression logic in each branch is reviewable on its own.
 
 import { ok, Result } from "@/domain/result";
@@ -21,7 +21,7 @@ function round1(n: number): number {
 }
 
 // Ratio field, no filter: central tendencies + bucketed histogram/Standard-Segment breakdown.
-// Below-threshold shape decision: see docs/ANALYTICS_PLAN.md §"Disclosure-control shape decisions".
+// Below-threshold shape decision: see docs/ANALYTICS.md §"Disclosure-control shape decisions".
 export function ratioNoFilter(field: AnalyticsFieldMeta, dataset: CohortDataset, audience: DisclosureAudience): Result<AnalyticsResult, ValidationError> {
   const values = dataset
     .map((patient) => resolveRatioValue(field.ref, patient.tabs))
@@ -37,7 +37,7 @@ export function ratioNoFilter(field: AnalyticsFieldMeta, dataset: CohortDataset,
   return ok({ kind: "ratioSummary", stats, buckets });
 }
 
-// Ratio field, Ratio filter: scatter plot — see docs/ANALYTICS_PLAN.md's disclosure-control notes.
+// Ratio field, Ratio filter: scatter plot — see docs/ANALYTICS.md's disclosure-control notes.
 export function ratioByRatio(
   field: AnalyticsFieldMeta,
   filter: AnalyticsFieldMeta,
