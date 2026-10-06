@@ -79,6 +79,8 @@ export default function RepeatingSection({
                       value={rowData?.[field.name]}
                       onChange={(v) => onCellChange(i, field.name, v)}
                       disabled={readOnly}
+                      idScope={`${section.name}-${i}`}
+                      ariaLabel={`${field.label}, ${(section.columnLabelPrefix ?? "Item") + (i + 1)}`}
                       compact
                     />
                   </td>
@@ -133,6 +135,8 @@ export default function RepeatingSection({
                     value={rowData?.[field.name]}
                     onChange={(v) => onCellChange(i, field.name, v)}
                     disabled={readOnly}
+                    idScope={`${section.name}-${i}`}
+                    ariaLabel={`${field.label}, entry ${i + 1}`}
                     compact
                   />
                 </td>

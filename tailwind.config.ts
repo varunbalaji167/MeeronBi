@@ -1,4 +1,31 @@
 import type { Config } from "tailwindcss";
+import plugin from "tailwindcss/plugin";
+// Relative on purpose: this file is loaded through jiti, which ignores tsconfig paths.
+import { hexToRgbChannels } from "./src/lib/design/color";
+import { palette } from "./src/lib/design/palette";
+
+type Tree = { [k: string]: string | Tree };
+type ColorTree = { [k: string]: string | ColorTree };
+
+// "ink" + DEFAULT -> "--ink"; "brand" + 500 -> "--brand-500".
+const varName = (path: string[]) => "--" + path.filter((k) => k !== "DEFAULT").join("-");
+
+function mapLeaves(node: Tree, path: string[], leaf: (path: string[], hex: string) => string): ColorTree {
+  return Object.fromEntries(
+    Object.entries(node).map(([k, v]) => [k, typeof v === "string" ? leaf([...path, k], v) : mapLeaves(v, [...path, k], leaf)]),
+  );
+}
+
+const colorTheme = () => mapLeaves(palette, [], (path) => `rgb(var(${varName(path)}) / <alpha-value>)`);
+
+function rootVars() {
+  const vars: Record<string, string> = {};
+  mapLeaves(palette, [], (path, hex) => {
+    vars[varName(path)] = hexToRgbChannels(hex);
+    return hex;
+  });
+  return vars;
+}
 
 const config: Config = {
   // A single catch-all glob rather than listing each top-level folder:
@@ -17,51 +44,11 @@ const config: Config = {
         display: ["var(--font-display)", "ui-serif", "serif"],
         sans: ["var(--font-body)", "ui-sans-serif", "system-ui", "sans-serif"],
       },
-      colors: {
-        // Warm paper background + deep forest-ink text — a clinical palette
-        // grounded in maternal/antenatal care rather than generic SaaS blue.
-        ink: {
-          DEFAULT: "#1B2420",
-          soft: "#3F473F",
-          faint: "#6B7268",
-        },
-        paper: {
-          DEFAULT: "#F6F6F2",
-          raised: "#FFFFFF",
-        },
-        line: {
-          DEFAULT: "#E1E0D5",
-          soft: "#ECEBE1",
-        },
-        // Primary: deep clinical teal
-        brand: {
-          50: "#E9F3F0",
-          100: "#D3E7E1",
-          200: "#A6CFC2",
-          300: "#79B7A4",
-          400: "#3D8E77",
-          500: "#0E6B5C",
-          600: "#0A5347",
-          700: "#083F37",
-          800: "#062C27",
-        },
-        // Draft / attention
-        gold: {
-          50: "#FBF1DD",
-          200: "#EBC97A",
-          500: "#B8862E",
-          600: "#8F6820",
-        },
-        // Danger / delete
-        rose: {
-          50: "#FBEAE9",
-          200: "#E7A8A4",
-          500: "#A3423D",
-          600: "#812F2B",
-        },
-      },
+      // Warm paper + forest-ink + clinical teal; hex lives in palette.ts and reaches
+      // the page as CSS vars, so a future dark theme only has to redefine them.
+      colors: colorTheme(),
       boxShadow: {
-        panel: "0 1px 2px rgba(27, 36, 32, 0.04), 0 1px 1px rgba(27, 36, 32, 0.03)",
+        panel: "0 1px 2px rgb(var(--ink) / 0.04), 0 1px 1px rgb(var(--ink) / 0.03)",
       },
       borderRadius: {
         md: "0.5rem",
@@ -69,6 +56,6 @@ const config: Config = {
       },
     },
   },
-  plugins: [],
+  plugins: [plugin(({ addBase }) => addBase({ ":root": rootVars() }))],
 };
 export default config;
