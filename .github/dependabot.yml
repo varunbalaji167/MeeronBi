@@ -29,6 +29,14 @@ updates:
         update-types: [version-update:semver-major]
       - dependency-name: eslint-config-next
         update-types: [version-update:semver-major]
+      # @types/node's major version tracks the Node.js runtime major version
+      # (pinned to 20 in ci.yml and production), not just "latest types". A
+      # types-only major bump still typechecks clean while describing APIs
+      # that don't exist on the real runtime — a silent, CI-invisible risk
+      # that only surfaces as a production crash. Bump this deliberately
+      # alongside an actual Node runtime upgrade, never automatically.
+      - dependency-name: "@types/node"
+        update-types: [version-update:semver-major]
 
   # Actions are executable code running with repository access; pinning them
   # and updating deliberately is part of the supply chain, not housekeeping.
