@@ -367,29 +367,35 @@ sudo install -d -m 700 -o deploy -g deploy /home/deploy/.ssh
 sudo chown -R deploy:deploy /var/www/meeronbi
 ```
 
-### 2. Give that user its own read-only GitHub deploy key
+### 2. Hand the GitHub deploy key over to that user
 
-Use `sudo -iu deploy` — a **login** shell — rather than `sudo -u deploy`.
-Plain `sudo -u` does not reliably reset `HOME`, so `ssh` and `pm2` would
-look in `/root/.ssh` and `/root/.pm2` while running as `deploy`, failing
-with a permission error that points nowhere useful.
+§3 already created a read-only deploy key (`/root/.ssh/meeronbi_deploy_key`)
+and registered it on GitHub. Step 4 retires root from deploying altogether,
+so the job here is to **move that key to `deploy`**, not to register a
+second one. Nothing changes on GitHub's side.
+
+```bash
+sudo cp /root/.ssh/meeronbi_deploy_key /home/deploy/.ssh/github_deploy
+sudo chown deploy:deploy /home/deploy/.ssh/github_deploy
+sudo chmod 600 /home/deploy/.ssh/github_deploy
+```
+
+> If that key is gone, generate a fresh one as `deploy`
+> (`ssh-keygen -t ed25519 -f ~/.ssh/github_deploy -N ""`), add the resulting
+> `.pub` under repo → **Settings → Deploy keys**, and leave *Allow write
+> access* unchecked.
+
+Now point the deploy user's ssh client at it. Use `sudo -iu deploy` — a
+**login** shell — rather than `sudo -u deploy`: plain `sudo -u` does not
+reliably reset `HOME`, so `ssh` and `pm2` would look in `/root/.ssh` and
+`/root/.pm2` while running as `deploy`, failing with a permission error
+that points nowhere useful.
 
 ```bash
 sudo -iu deploy          # become deploy; stay here through step 3
 ```
 
 Everything in this block runs **as deploy**:
-
-```bash
-ssh-keygen -t ed25519 -C "meeronbi-deploy-user" -f ~/.ssh/github_deploy -N ""
-cat ~/.ssh/github_deploy.pub
-```
-
-Add that public key on GitHub: repo → **Settings → Deploy keys → Add deploy
-key** → paste → **leave "Allow write access" unchecked.** This is a second,
-separately revocable key; root's §3 key can be removed afterwards.
-
-Then, still as deploy:
 
 ```bash
 cat >> ~/.ssh/config << 'EOF'
@@ -404,6 +410,11 @@ chmod 600 ~/.ssh/config
 # before continuing. Anything else means step 3's clone will fail.
 ssh -T git@github.com
 ```
+
+Once §12 is finished and deploys are working, remove root's now-unused
+copy (`sudo rm /root/.ssh/meeronbi_deploy_key*`) and drop the `Host
+github.com` block from `/root/.ssh/config`, so exactly one account can
+pull this repo.
 
 ### 3. Build the new layout alongside the old one
 
