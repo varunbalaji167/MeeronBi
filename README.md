@@ -135,6 +135,13 @@ Patients don't self-register; staff grant access per patient:
    `npx tsx prisma/seed-second-facility.ts` separately — see that file's own
    comment for the manual QA steps it sets up.
 
+   For realistic Analytics volume, `npx tsx prisma/seed-cs-register.ts`
+   (add `--dry-run` to preview) loads 60 de-identified deliveries from a real
+   2020 caesarean-section register (`prisma/cs-register/`): 30 into the
+   default facility, 15 each into two demo facilities it creates. Names and
+   MRDs (`CSR-001`…) are synthetic, DOBs are derived from age, and it
+   creates no user accounts.
+
 5. **Run the app**
    ```bash
    npm run dev

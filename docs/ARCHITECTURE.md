@@ -43,6 +43,8 @@ find yourself importing "up" this list (e.g. `domain/` importing from
 prisma/
   schema.prisma          Database schema — the source of truth for tables/columns
   seed.ts                Creates an admin login + one fully-filled demo patient
+  seed-cs-register.ts    Loads 60 de-identified real deliveries across 3 facilities (Analytics volume)
+  cs-register/           That register's CSV + its tested column-to-field mapping
 
 src/
   domain/                 Pure business logic & types (see "domain/" below)
