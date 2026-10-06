@@ -123,6 +123,7 @@ echo
 echo "Public surfaces render"
 expect_status /login 200 "/login renders"
 expect_status /public/trends 200 "/public/trends renders"
+expect_body "Registered Patients" "/public/trends server-renders its stats, not an empty shell"
 expect_status /researcher-access 200 "/researcher-access renders"
 expect_status /forgot-password 200 "/forgot-password renders"
 expect_status /set-password 200 "/set-password renders"
