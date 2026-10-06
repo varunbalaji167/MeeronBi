@@ -7,6 +7,7 @@ import Skeleton from "@/components/ui/Skeleton";
 import Spinner from "@/components/ui/Spinner";
 import { toApiError, friendlyErrorMessage } from "@/lib/apiClient";
 import { CheckCircle2, XCircle } from "lucide-react";
+import AuthShell from "@/components/layout/AuthShell";
 
 type Status = "checking" | "success" | "error";
 
@@ -40,8 +41,8 @@ function VerifyEmailContent() {
   }, [token]);
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-paper px-6 py-16">
-      <div className="panel max-w-md text-center">
+    <AuthShell>
+      <div className="panel text-center">
         {status === "checking" && (
           <>
             <Spinner className="mx-auto h-8 w-8" />
@@ -66,7 +67,7 @@ function VerifyEmailContent() {
           Back to sign in
         </Link>
       </div>
-    </main>
+    </AuthShell>
   );
 }
 
@@ -74,12 +75,12 @@ export default function VerifyEmailPage() {
   return (
     <Suspense
       fallback={
-        <main className="flex min-h-screen flex-col items-center justify-center bg-paper px-6 py-16">
-          <div className="panel w-full max-w-md">
+        <AuthShell>
+          <div className="panel">
             <Skeleton className="mx-auto h-8 w-8 rounded-full" />
             <Skeleton className="mx-auto mt-4 h-7 w-56" />
           </div>
-        </main>
+        </AuthShell>
       }
     >
       <VerifyEmailContent />

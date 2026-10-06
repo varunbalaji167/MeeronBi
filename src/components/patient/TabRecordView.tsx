@@ -8,7 +8,7 @@ import ErrorBanner from "../ui/ErrorBanner";
 import { getTabByKey, computeRobsonGroup, classifyDeliveryTiming } from "@/domain/tabs";
 import { isCustomizable, resolveVisibleFieldNames, getFieldsWithData } from "@/domain/fieldVisibility";
 import { computeGestationalAge } from "@/domain/gestationalAge";
-import { useTabRecord } from "@/hooks/useTabRecord";
+import { useTabRecord, type InitialTabRecord } from "@/hooks/useTabRecord";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { useTabForm } from "@/context/TabFormContext";
 import { useToast } from "@/context/ToastContext";
@@ -20,22 +20,28 @@ interface Props {
   tabKey: string;
   patientId: string;
   readOnly?: boolean;
+  /** Server-read record; when given, the tab renders without a client fetch. */
+  initialRecord?: InitialTabRecord;
+  /** Server-read field selection (null = never configured); skips the client fetch like initialRecord does. */
+  initialFieldSelection?: string[] | null;
+  /** Server-read Personal LMP for Ultrasound's gestational age (null = none recorded); skips the client fetch. */
+  initialPersonalLmp?: string | null;
 }
 
-export default function TabRecordView({ tabKey, patientId, readOnly }: Props) {
+export default function TabRecordView({ tabKey, patientId, readOnly, initialRecord, initialFieldSelection, initialPersonalLmp }: Props) {
   const tab = getTabByKey(tabKey);
-  const record = useTabRecord(patientId, tab?.route ?? tabKey);
+  const record = useTabRecord(patientId, tab?.route ?? tabKey, initialRecord);
   const canCustomize = !readOnly && !!tab && isCustomizable(tab);
-  const fieldVisibility = useFieldVisibility(tabKey, canCustomize);
+  const fieldVisibility = useFieldVisibility(tabKey, canCustomize, initialFieldSelection);
   const [showCustomizer, setShowCustomizer] = useState(false);
   const { showToast } = useToast();
   const { activeForm } = useTabForm();
   const customizerTitleId = useId();
 
-  // Only fetched for Ultrasound, to compute gestational age from Personal's LMP; failure is non-blocking.
-  const [personalLmp, setPersonalLmp] = useState<string | null>(null);
+  // Ultrasound only: gestational age from Personal's LMP, server-seeded where possible; a failed fetch is non-blocking.
+  const [personalLmp, setPersonalLmp] = useState<string | null>(initialPersonalLmp ?? null);
   useEffect(() => {
-    if (tabKey !== "ultrasound") return;
+    if (tabKey !== "ultrasound" || initialPersonalLmp !== undefined) return;
     let cancelled = false;
     fetch(`/api/patients/${patientId}/personal`)
       .then((r) => (r.ok ? r.json() : null))
@@ -48,6 +54,7 @@ export default function TabRecordView({ tabKey, patientId, readOnly }: Props) {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the seed is only read on mount; tab changes remount this view
   }, [tabKey, patientId]);
 
   // Close the field-customizer overlay on Escape, same as ConfirmDialog.

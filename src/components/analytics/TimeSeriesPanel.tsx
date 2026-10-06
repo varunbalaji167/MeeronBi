@@ -82,7 +82,7 @@ export default function TimeSeriesPanel() {
 
   return (
     <div className="space-y-6">
-      <div className="panel space-y-4">
+      <div className="animate-rise-in panel space-y-4">
         <ErrorBoundary fallbackMessage="Failed to load fields." onRetry={resetAnalyticsFields}>
           <Suspense fallback={<FieldPickerSkeleton />}>
             <TimeSeriesFieldPicker value={field} onChange={chooseField} />
@@ -133,7 +133,7 @@ export default function TimeSeriesPanel() {
       )}
 
       {!ready && (
-        <div className="panel flex flex-col items-center gap-2 py-12 text-center">
+        <div className="animate-rise-in panel flex flex-col items-center gap-2 py-12 text-center" style={{ animationDelay: "80ms" }}>
           <Waypoints className="h-8 w-8 text-brand-300" />
           <p className="font-display text-lg italic text-ink">Follow a trend across pregnancy</p>
           <p className="max-w-sm text-sm text-ink-soft">

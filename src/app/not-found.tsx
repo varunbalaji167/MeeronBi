@@ -1,14 +1,14 @@
 import Link from "next/link";
-import { FileQuestion } from "lucide-react";
+import AuthShell from "@/components/layout/AuthShell";
 import EmptyState from "@/components/ui/EmptyState";
 import { buttonClasses } from "@/components/ui/Button";
 
 export default function NotFound() {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-paper px-6 py-16">
-      <div className="panel w-full max-w-md">
+    <AuthShell>
+      <div className="panel">
         <EmptyState
-          icon={<FileQuestion className="h-8 w-8" />}
+          illustration="notFound"
           title="Page not found"
           description="The link may be out of date, or the page may have moved."
           action={
@@ -18,6 +18,6 @@ export default function NotFound() {
           }
         />
       </div>
-    </main>
+    </AuthShell>
   );
 }

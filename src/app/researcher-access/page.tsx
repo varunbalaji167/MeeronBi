@@ -10,6 +10,7 @@ import ErrorBanner from "@/components/ui/ErrorBanner";
 import GoogleButton from "@/components/ui/GoogleButton";
 import { toApiError, friendlyErrorMessage } from "@/lib/apiClient";
 import { CheckCircle2, GraduationCap, Mail, Lock, Building2 } from "lucide-react";
+import AuthShell from "@/components/layout/AuthShell";
 
 const GOOGLE_START_ERROR_MESSAGE: Record<string, string> = {
   "google-link-invalid": "That Google sign-up link isn't valid or has expired. Please try again below.",
@@ -66,8 +67,8 @@ function ResearcherAccessRequestForm() {
 
   if (submitted) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center bg-paper px-6 py-16">
-        <div className="panel max-w-md text-center">
+      <AuthShell>
+        <div className="panel text-center">
           <CheckCircle2 className="mx-auto h-10 w-10 text-brand-500" />
           <h1 className="mt-4 font-display text-2xl italic text-ink">Check your email</h1>
           <p className="mt-2 text-sm text-ink-soft">
@@ -79,13 +80,13 @@ function ResearcherAccessRequestForm() {
             Back to sign in
           </Link>
         </div>
-      </main>
+      </AuthShell>
     );
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-paper px-6 py-16">
-      <div className="w-full max-w-md">
+    <AuthShell>
+      <div>
         <Link href="/login?role=researcher" className="text-sm font-medium text-brand-600">
           ← Back to sign in
         </Link>
@@ -175,7 +176,7 @@ function ResearcherAccessRequestForm() {
           </div>
         )}
       </div>
-    </main>
+    </AuthShell>
   );
 }
 
@@ -183,8 +184,8 @@ export default function ResearcherAccessPage() {
   return (
     <Suspense
       fallback={
-        <main className="flex min-h-screen flex-col items-center justify-center bg-paper px-6 py-16">
-          <div className="w-full max-w-md">
+        <AuthShell>
+          <div>
             <Skeleton className="h-7 w-64" />
             <Skeleton className="mt-3 h-4 w-full" />
             <div className="panel mt-6 flex flex-col gap-4">
@@ -193,7 +194,7 @@ export default function ResearcherAccessPage() {
               <Skeleton className="h-10 w-full" />
             </div>
           </div>
-        </main>
+        </AuthShell>
       }
     >
       <ResearcherAccessRequestForm />

@@ -1,19 +1,11 @@
-"use client";
-
-import { useState } from "react";
-import { useAuth } from "@/context/AuthContext";
+import { getSession, requirePatientSession } from "@/server/auth/guards";
+import { getTabRecord } from "@/server/patients/tabRecordRepository";
 import { allTabs } from "@/domain/tabs";
-import TabRecordView from "@/components/patient/TabRecordView";
-import CareTimeline from "@/components/patient/CareTimeline";
-import PageLoader from "@/components/ui/PageLoader";
+import PageHeader from "@/components/ui/PageHeader";
+import PatientRecordClient from "./PatientRecordClient";
 
-export default function PatientRecordPage() {
-  const { patientId, isLoading } = useAuth();
-  const [activeKey, setActiveKey] = useState(allTabs[0].key);
-
-  if (isLoading) {
-    return <PageLoader label="Loading your record…" />;
-  }
+export default async function PatientRecordPage() {
+  const patientId = (await getSession())?.user.patientId;
   if (!patientId) {
     return (
       <p className="panel text-sm text-ink-soft">
@@ -21,21 +13,21 @@ export default function PatientRecordPage() {
       </p>
     );
   }
+  await requirePatientSession(); // fresh-session check; patientId comes from the session itself, so it's always the patient's own record
 
-  const activeTab = allTabs.find((t) => t.key === activeKey)!;
+  const records = await Promise.all(allTabs.map((t) => getTabRecord(t.key, patientId)));
+  const initialRecords = Object.fromEntries(
+    allTabs.map((t, i) => [t.key, records[i] ? { data: records[i]!.data, status: records[i]!.status } : undefined])
+  );
+  const personalLmp = (initialRecords.personal?.data.lmp as string | undefined) ?? null;
 
   return (
     <div className="flex flex-col gap-5">
-      <div>
-        <h2 className="font-display text-2xl italic text-ink">My Antenatal Care Record</h2>
-        <p className="mt-1 text-sm text-ink-soft">
-          A read-only view of your record. Contact hospital staff if anything needs correction.
-        </p>
-      </div>
-      <div className="panel py-4">
-        <CareTimeline activeKey={activeKey} onSelectKey={setActiveKey} />
-      </div>
-      <TabRecordView tabKey={activeTab.key} patientId={patientId} readOnly />
+      <PageHeader
+        title="My Antenatal Care Record"
+        description="A read-only view of your record. Contact hospital staff if anything needs correction."
+      />
+      <PatientRecordClient patientId={patientId} initialRecords={initialRecords} personalLmp={personalLmp} />
     </div>
   );
 }

@@ -6,6 +6,7 @@ import Spinner from "@/components/ui/Spinner";
 import ErrorBanner from "@/components/ui/ErrorBanner";
 import { toApiError, friendlyErrorMessage } from "@/lib/apiClient";
 import { Mail, CheckCircle2 } from "lucide-react";
+import AuthShell from "@/components/layout/AuthShell";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -35,8 +36,8 @@ export default function ForgotPasswordPage() {
 
   if (submitted) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center bg-paper px-6 py-16">
-        <div className="panel max-w-md text-center">
+      <AuthShell>
+        <div className="panel text-center">
           <CheckCircle2 className="mx-auto h-10 w-10 text-brand-500" />
           <h1 className="mt-4 font-display text-2xl italic text-ink">Check your email</h1>
           <p className="mt-2 text-sm text-ink-soft">
@@ -46,13 +47,13 @@ export default function ForgotPasswordPage() {
             Back to sign in
           </Link>
         </div>
-      </main>
+      </AuthShell>
     );
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-paper px-6 py-16">
-      <div className="w-full max-w-md">
+    <AuthShell>
+      <div>
         <Link href="/login" className="text-sm font-medium text-brand-600">
           ← Back to sign in
         </Link>
@@ -82,6 +83,6 @@ export default function ForgotPasswordPage() {
           </button>
         </form>
       </div>
-    </main>
+    </AuthShell>
   );
 }

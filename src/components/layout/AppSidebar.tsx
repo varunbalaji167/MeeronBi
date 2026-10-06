@@ -98,7 +98,7 @@ export default function AppSidebar({ role }: { role: SidebarRole }) {
   return (
     <>
       {/* Mobile top bar */}
-      <div className="flex items-center justify-between border-b border-line bg-white px-4 py-3 lg:hidden">
+      <div className="sticky top-0 z-20 flex items-center justify-between border-b border-line bg-white px-4 py-3 lg:hidden">
         <button
           type="button"
           onClick={() => setOpen(true)}
