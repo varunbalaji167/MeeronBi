@@ -1,3 +1,4 @@
+import PageHeader from "@/components/ui/PageHeader";
 import AnalyticsWorkbench from "@/components/analytics/AnalyticsWorkbenchLoader";
 
 export const metadata = { title: "Analytics" };
@@ -5,7 +6,11 @@ export const metadata = { title: "Analytics" };
 export default function AdminAnalyticsPage() {
   return (
     <div>
-      <h1 className="mb-5 font-display text-xl italic text-ink">Analytics</h1>
+      <PageHeader
+        title="Analytics"
+        description="Aggregate, disclosure-controlled results — never an individual patient row."
+        className="mb-6"
+      />
       <AnalyticsWorkbench />
     </div>
   );

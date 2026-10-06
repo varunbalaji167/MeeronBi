@@ -4,6 +4,7 @@ import { RepeatingSectionConfig } from "@/domain/tabs";
 import FieldInput from "../FieldInput";
 import { Plus, X } from "lucide-react";
 import Button from "@/components/ui/Button";
+import EmptyState from "@/components/ui/EmptyState";
 
 interface Props {
   section: RepeatingSectionConfig;
@@ -107,6 +108,20 @@ export default function RepeatingSection({
       </div>
 
       {/* Regular layout: one row per entry, one column per field. */}
+      {rows.length === 0 ? (
+        <EmptyState
+          illustration="entries"
+          title="No entries yet."
+          description={readOnly ? undefined : "Add the first one to start this list."}
+          action={
+            readOnly ? undefined : (
+              <Button variant="secondary" size="sm" onClick={onAddRow} icon={<Plus className="h-3.5 w-3.5" />}>
+                {section.addRowLabel ?? "Add row"}
+              </Button>
+            )
+          }
+        />
+      ) : (
       <table className="w-full min-w-[900px] table-auto border-collapse text-sm">
         <thead>
           <tr className="border-b border-line text-left text-ink-faint">
@@ -120,13 +135,6 @@ export default function RepeatingSection({
           </tr>
         </thead>
         <tbody>
-          {rows.length === 0 && (
-            <tr>
-              <td colSpan={section.fields.length + 2} className="py-4 text-center text-ink-faint/70">
-                No entries yet.
-              </td>
-            </tr>
-          )}
           {rows.map((rowData, i) => (
             <tr key={i} className={`border-b border-line last:border-0 align-top ${i % 2 === 1 ? "bg-paper/60" : ""}`}>
               <td className="py-2 pr-2 text-ink-faint/70">{i + 1}</td>
@@ -158,6 +166,7 @@ export default function RepeatingSection({
           ))}
         </tbody>
       </table>
+      )}
     </section>
   );
 }

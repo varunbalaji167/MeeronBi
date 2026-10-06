@@ -102,7 +102,7 @@ function CohortPanel() {
 
   return (
     <div className="space-y-6">
-      <div className="panel space-y-4">
+      <div className="animate-rise-in panel space-y-4">
         <ErrorBoundary fallbackMessage="Failed to load fields." onRetry={resetAnalyticsFields}>
           <Suspense fallback={<FieldPickerSkeleton />}>
             <CohortFieldPicker value={field} onChange={chooseField} />
@@ -133,7 +133,7 @@ function CohortPanel() {
       )}
 
       {!field && (
-        <div className="panel flex flex-col items-center gap-2 py-12 text-center">
+        <div className="animate-rise-in panel flex flex-col items-center gap-2 py-12 text-center" style={{ animationDelay: "80ms" }}>
           <Telescope className="h-8 w-8 text-brand-300" />
           <p className="font-display text-lg italic text-ink">Let&apos;s go exploring</p>
           <p className="max-w-sm text-sm text-ink-soft">
@@ -215,7 +215,7 @@ function CohortResult({ field, filter }: { field: AnalyticsFieldMeta; filter: An
   const result = getCohortResource(field, filter).read();
 
   return (
-    <div className="animate-rise-in space-y-4">
+    <div className="animate-rise-in space-y-4" style={{ animationDelay: "80ms" }}>
       <ResultSummary field={field} filter={filter} result={result} />
       <ResultChart field={field} filter={filter} result={result} />
     </div>

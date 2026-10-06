@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { toApiError, friendlyErrorMessage } from "@/lib/apiClient";
 
 interface UseFieldVisibilityResult {
@@ -12,13 +13,22 @@ interface UseFieldVisibilityResult {
   save: (names: string[]) => Promise<void>;
 }
 
-/** Fetches/saves which fields are enabled for a tab (hospital-wide, admin-only). */
-export function useFieldVisibility(tabKey: string, enabled: boolean): UseFieldVisibilityResult {
-  const [storedSelection, setStoredSelection] = useState<string[] | null>(null);
-  const [loading, setLoading] = useState(enabled);
+/**
+ * Fetches/saves which fields are enabled for a tab (hospital-wide, admin-only). A server-read
+ * `initialSelection` (null = never configured) skips the mount fetch; undefined means "not provided".
+ */
+export function useFieldVisibility(tabKey: string, enabled: boolean, initialSelection?: string[] | null): UseFieldVisibilityResult {
+  const router = useRouter();
+  const seeded = initialSelection !== undefined;
+  const [storedSelection, setStoredSelection] = useState<string[] | null>(initialSelection ?? null);
+  const [loading, setLoading] = useState(enabled && !seeded);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // Keyed (not a boolean) so a StrictMode double-run still skips, while a later tab change fetches.
+  const seededKey = useRef(seeded ? tabKey : null);
 
   useEffect(() => {
+    if (seededKey.current === tabKey) return;
+    seededKey.current = null;
     if (!enabled) {
       setLoading(false);
       return;
@@ -58,6 +68,7 @@ export function useFieldVisibility(tabKey: string, enabled: boolean): UseFieldVi
       throw await toApiError(res, `Failed to save field selection (HTTP ${res.status}).`);
     }
     setStoredSelection(names);
+    router.refresh(); // drops the cached server payload so a later remount doesn't re-seed the old selection
   }
 
   return { storedSelection, loading, loadError, save };

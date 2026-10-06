@@ -63,7 +63,9 @@ use the same script, so what passes in CI is what is checked in production.
   `ok` against a dead database and would also blind the deploy's rollback gate.
 - **Public surfaces** — `/login`, `/public/trends`, `/researcher-access`,
   `/forgot-password`, `/set-password`, `/verify-email` and
-  `/api/public/trends` render; unknown routes 404. Also confirms
+  `/api/public/trends` render; `/public/trends` must contain its server-rendered
+  stats (catches an accidental `ssr: false` over the whole page); unknown routes
+  404. Also confirms
   `POST /api/auth/password-reset/request` never 500s for an unknown address —
   a crash there would be as much of an account-enumeration oracle as a
   differing response body.
@@ -74,7 +76,8 @@ use the same script, so what passes in CI is what is checked in production.
   and `X-Powered-By` is absent.
 
 `--with-login` adds a real NextAuth credentials sign-in, exercising bcrypt,
-the user table and the session callback end to end. CI only — against
+the user table and the session callback end to end. It also loads
+`/admin?page=2&q=zz`, proving searchParams rendering survives an empty result set. CI only — against
 production it would be a real login attempt with real credentials, so the
 deploy's own smoke run omits it.
 

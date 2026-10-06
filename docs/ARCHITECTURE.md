@@ -122,7 +122,11 @@ src/
 
   app/                    Next.js App Router — routing glue only
     admin/                 Hospital staff area (sidebar shell, patient list, per-patient tabs)
-    patient/               Patient portal area (sidebar shell, read-only record view)
+      page.tsx               Server Component: reads ?page/q/facilityId, calls listPatients directly;
+                             PatientListFrame (client toolbar) wraps the server-rendered PatientTable + Pagination
+      facilities/, researchers/  Thin server parent (role check + initial data) over a *Client.tsx component
+    patient/               Patient portal area (sidebar shell, read-only record view; page.tsx is a
+                           Server Component seeding the first tab, PatientRecordClient owns stage switching)
     researcher/            Approved-researcher analytics area
     researcher-access/     Public form for requesting researcher access, or "Sign up with Google"
       complete/              No-session completion form after a Google researcher-signup redirect
@@ -136,8 +140,8 @@ src/
       researcher-access/     request (credentials signup), google-start, google-complete
 
   components/
-    ui/                    Generic, dumb, reusable anywhere (Spinner, ErrorBanner)
-    layout/                App-shell chrome (AppSidebar, SignOutButton)
+    ui/                    Generic, dumb, reusable anywhere (Spinner, ErrorBanner, EmptyState + Illustration, PageHeader)
+    layout/                App-shell chrome (AppSidebar, SignOutButton, AuthShell for the standalone auth screens)
     forms/                 The dynamic form engine (knows about domain/tabs, nothing patient-specific)
       DynamicForm.tsx        Orchestrator: state, save/delete/autosave wiring
       FieldInput.tsx         Renders one field by type (text/select/phone/...)
@@ -145,7 +149,7 @@ src/
       sections/              PlainSection / GridSection / RepeatingSection renderers
     analytics/              Analytics UI: field/filter/patient pickers, cohort and time-series panels
     patient/                Feature-specific: only meaningful in "a patient's record" context
-      TabRecordView.tsx       Loads a tab's data, resolves visible fields, renders DynamicForm
+      TabRecordView.tsx       Resolves visible fields, renders DynamicForm; takes an optional server-read initialRecord, else fetches
       PatientHeader.tsx, PatientPortalAccess.tsx, PatientTabNav.tsx, CareTimeline.tsx
 
   context/                React Context providers (client-side app state)
@@ -154,7 +158,7 @@ src/
     TabFormContext.tsx      Lets tab navigation autosave the active form before leaving
 
   hooks/                  Reusable client-side hooks
-    useTabRecord.ts          Fetch/save/delete for one patient's tab record
+    useTabRecord.ts          Save/delete for one tab record; fetches on mount only when no initialRecord is given
     useFieldVisibility.ts    Fetch/save a tab's field-visibility selection
 
   types/next-auth.d.ts    Type augmentation for next-auth's Session/JWT shapes
@@ -534,8 +538,9 @@ Three distinct mechanisms, for three distinct moments — worth keeping straight
   boundaries — they render automatically while an `async` Server Component
   in that route segment (a layout awaiting `getSession()`, or the `[id]`
   layout awaiting `getPatientHeaderInfo()`) is still resolving, with zero
-  client-side state of your own to manage. Each one is a skeleton shaped
-  like the real content (via `components/ui/Skeleton.tsx`) so the page
+  client-side state of your own to manage. Next nests them *inside* the
+  sibling `layout.tsx`, so they render content only — never their own
+  sidebar/`<main>` shell. Each one is a skeleton shaped like the real content (via `components/ui/Skeleton.tsx`) so the page
   doesn't visually "pop" once real data arrives.
 - **A matching client-side skeleton** (`components/ui/FormSkeleton.tsx`,
   built from the same `Skeleton` primitive) covers a `"use client"`
@@ -544,16 +549,15 @@ Three distinct mechanisms, for three distinct moments — worth keeping straight
   notably `TabRecordView`'s per-tab record fetch. Use the *same* skeleton
   shape here as the route's `loading.tsx` uses for the equivalent content,
   not a spinner: handing off from a `loading.tsx` skeleton to a
-  `PageLoader` spinner and only then to real data reads as two separate
+  spinner and only then to real data reads as two separate
   loading moments (a visible flicker) instead of one continuous "this is
   materializing" impression. This is why `TabRecordView` renders
-  `FormSkeleton`, not `PageLoader`, while `record.loading` is true.
-- **`PageLoader.tsx`** (a centered spinner) is for client-side waits where
-  the final shape *isn't* predictable enough to skeleton — the patient
-  portal page's auth-resolution wait before it even knows which patient
-  record to fetch, the admin patient list's search/pagination reloads. For
-  something narrower still (a table's own loading row, a button's
-  in-flight state), a plain inline `Spinner` fits better than either.
+  `FormSkeleton`, not a spinner, while `record.loading` is true.
+- **Inline `Spinner`** is for narrower waits where the shape isn't worth a
+  skeleton — a button's in-flight state, or a client tab switch that refetches
+  (e.g. the Approved/Rejected tabs on `/admin/researchers`). Prefer a Server
+  Component read plus `loading.tsx` over a client fetch-then-spinner for any
+  page's first paint: it removes the hydrate-then-fetch waterfall.
 
 ### Action-button loading state and error messages
 
@@ -592,13 +596,13 @@ Next's inference, so the choice reads as a decision, not an accident:
   per-request data.
 - `app/admin/layout.tsx`, `app/patient/layout.tsx` — `"force-dynamic"`.
   Both read the session on every request; must never be cached across users.
-- `app/public/trends/page.tsx` is a Client Component, so it can't export
-  route-segment config itself (Next.js only honors `dynamic`/`revalidate`
-  exports from Server Components) — but since nothing at that route's
-  server level uses a dynamic API either, it's statically rendered by
-  default anyway; its actual data comes from the client-side `fetch` to
-  `/api/public/trends` shown while `PageLoader`/skeletons display, not from
-  the page's own server render.
+- `app/public/trends/page.tsx` is an async Server Component with
+  `revalidate = 300` (ISR): it calls `getPublicTrends()` directly, so the stat
+  cards are in the HTML. recharts lives in `TrendsCharts.tsx`, lazily loaded via
+  `TrendsChartsLoader.tsx`; the session-aware nav link is the isolated
+  `HomeLink.tsx` client island, because reading the session in the page would
+  force dynamic rendering and defeat ISR. `/api/public/trends` stays for the
+  smoke test and the rate-limited public surface.
 
 ### Accessibility patterns to keep using
 

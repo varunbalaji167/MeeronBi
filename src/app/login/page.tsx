@@ -247,14 +247,29 @@ function LoginForm() {
         </div>
       </div>
 
-      {/* Form panel */}
-      <div className="flex flex-col justify-center px-6 py-16 sm:px-12 lg:px-16">
-        <div className="mx-auto w-full max-w-sm">
-          <Link href="/" className="text-sm font-medium text-brand-600 lg:hidden">
-            ← MeeronBi
+      {/* Compact brand panel for phones, where the full panel above is hidden */}
+      <div className="relative overflow-hidden bg-brand-700 px-6 py-8 text-brand-50 sm:px-12 lg:hidden">
+        <div
+          className="pointer-events-none absolute inset-0 opacity-[0.07]"
+          style={{ backgroundImage: "radial-gradient(circle at 1px 1px, white 1px, transparent 0)", backgroundSize: "22px 22px" }}
+        />
+        <div className="relative mx-auto max-w-sm">
+          <Link href="/" className="font-display text-xl italic text-white">
+            MeeronBi
           </Link>
+          <p className="mt-5 text-xs font-medium uppercase tracking-wider text-brand-200">{content.eyebrow}</p>
+          <h2 className="mt-2 font-display text-2xl italic leading-tight text-white">{content.heading}</h2>
+          <p className="mt-2 text-sm leading-relaxed text-brand-100">{content.body}</p>
+          <div className="mt-5 rounded-lg border border-white/10 bg-white/5 p-3">
+            <CareTimeline size="sm" variant="dark" />
+          </div>
+        </div>
+      </div>
 
-          <div className="mt-4 flex flex-wrap gap-2 lg:mt-0">
+      {/* Form panel */}
+      <div className="flex flex-col justify-center px-6 py-10 sm:px-12 lg:px-16 lg:py-16">
+        <div className="mx-auto w-full max-w-sm">
+          <div className="flex flex-wrap gap-2">
             <Link
               href="/login?role=patient"
               className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${

@@ -1,10 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toApiError, friendlyErrorMessage } from "@/lib/apiClient";
 
 export type TabRecordStatus = "DRAFT" | "COMPLETE";
+
+export interface InitialTabRecord {
+  data: Record<string, any>;
+  status: TabRecordStatus;
+}
 
 interface UseTabRecordResult {
   loading: boolean;
@@ -16,15 +21,19 @@ interface UseTabRecordResult {
   remove: () => Promise<void>;
 }
 
-/** GET/PUT/DELETE plumbing for one tab's record; throws on failure so the caller handles the error. */
-export function useTabRecord(patientId: string, tabRoute: string): UseTabRecordResult {
+/** GET/PUT/DELETE plumbing for one tab's record; throws on failure so the caller handles the error. A server-read `initialRecord` skips the mount fetch. */
+export function useTabRecord(patientId: string, tabRoute: string, initialRecord?: InitialTabRecord): UseTabRecordResult {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!initialRecord);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [data, setData] = useState<Record<string, any>>({});
-  const [status, setStatus] = useState<TabRecordStatus>("DRAFT");
+  const [data, setData] = useState<Record<string, any>>(initialRecord?.data ?? {});
+  const [status, setStatus] = useState<TabRecordStatus>(initialRecord?.status ?? "DRAFT");
+  // Keyed (not a boolean) so a StrictMode double-run of the effect still skips, while a later patient/tab change fetches.
+  const seededKey = useRef(initialRecord ? `${patientId}/${tabRoute}` : null);
 
   useEffect(() => {
+    if (seededKey.current === `${patientId}/${tabRoute}`) return;
+    seededKey.current = null;
     let cancelled = false;
     setLoading(true);
     setLoadError(null);

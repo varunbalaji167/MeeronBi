@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { peekToken } from "@/server/auth/credentialTokens";
 import SetPasswordForm from "./SetPasswordForm";
+import AuthShell from "@/components/layout/AuthShell";
 
 export const metadata = { title: "Set your password" };
 
@@ -8,8 +9,8 @@ const ALLOWED_PURPOSES = ["ACCOUNT_INVITE", "PASSWORD_RESET"] as const;
 
 function ExpiredOrInvalidState({ heading, body, resendHref }: { heading: string; body: string; resendHref: string }) {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-paper px-6 py-16">
-      <div className="panel max-w-md text-center">
+    <AuthShell>
+      <div className="panel text-center">
         <h1 className="font-display text-2xl italic text-ink">{heading}</h1>
         <p className="mt-2 text-sm text-ink-soft">{body}</p>
         <div className="mt-6 flex flex-col gap-2">
@@ -21,7 +22,7 @@ function ExpiredOrInvalidState({ heading, body, resendHref }: { heading: string;
           </Link>
         </div>
       </div>
-    </main>
+    </AuthShell>
   );
 }
 

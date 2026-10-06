@@ -120,9 +120,22 @@ export default function CareTimeline({
     );
   });
 
+  const activeIndex = allTabs.findIndex((t) => t.key === activeKey);
+
   return (
-    <ol className="flex w-full items-start" aria-label="Antenatal care record stages">
-      {content}
-    </ol>
+    <div className="w-full">
+      <ol className="flex w-full items-start" aria-label="Antenatal care record stages">
+        {content}
+      </ol>
+      {/* Below sm the per-stage labels are hidden, so name the current stage in words; the dots' own aria-labels already cover screen readers. */}
+      {activeIndex >= 0 && (
+        <p
+          aria-hidden="true"
+          className={`mt-3 text-center text-xs font-medium sm:hidden ${dark ? "text-white" : "text-brand-700"}`}
+        >
+          Step {activeIndex + 1} of {allTabs.length} — {allTabs[activeIndex].label}
+        </p>
+      )}
+    </div>
   );
 }

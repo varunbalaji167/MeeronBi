@@ -110,7 +110,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       {children}
       {/* Top-center to avoid colliding with DynamicForm's sticky bottom action bar. */}
       <div
-        className="pointer-events-none fixed inset-x-0 top-4 z-[60] flex flex-col items-center gap-2 px-4 sm:top-5"
+        className="pointer-events-none fixed inset-x-0 top-[4.5rem] z-[60] flex flex-col items-center gap-2 px-4 lg:top-5"
         aria-live="polite"
         aria-atomic="false"
       >

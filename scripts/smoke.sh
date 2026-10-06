@@ -226,6 +226,7 @@ if [[ "$WITH_LOGIN" == "--with-login" ]]; then
     }
 
     expect_status_authed /admin 200 "signed-in admin reaches /admin"
+    expect_status_authed "/admin?page=2&q=zz" 200 "/admin searchParams render an empty result set without a 500"
     expect_status_authed /api/patients 200 "signed-in admin reads /api/patients"
     expect_status_authed /api/analytics/fields 200 "signed-in admin reads /api/analytics/fields"
   fi
