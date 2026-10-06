@@ -13,7 +13,12 @@
     "prisma:studio": "prisma studio",
     "seed": "tsx prisma/seed.ts",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "smoke": "bash scripts/smoke.sh",
+    "audit:gate": "node scripts/audit-gate.mjs",
+    "audit:report": "node scripts/audit-gate.mjs --report",
+    "security": "bash scripts/security-scan.sh",
+    "verify": "npm run lint && npm run typecheck && npm test"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

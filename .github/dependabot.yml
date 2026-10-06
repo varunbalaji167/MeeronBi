@@ -1,0 +1,40 @@
+version: 2
+
+# Dependabot version updates are free on private repositories, so this is the
+# cheapest way to keep the dependency audit gate (scripts/audit-gate.mjs) from
+# slowly accumulating accepted risk. Every PR it opens still has to pass the
+# full CI pipeline, including the build-and-boot smoke test.
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    # Grouped so a quiet week is one reviewable PR rather than eight. Security
+    # updates are deliberately left ungrouped by Dependabot and arrive on their
+    # own, which is what we want.
+    groups:
+      production-dependencies:
+        dependency-type: production
+        update-types: [minor, patch]
+      development-dependencies:
+        dependency-type: development
+        update-types: [minor, patch]
+    ignore:
+      # next 14 -> 16 is a two-major upgrade that needs its own planned pass,
+      # not an automated PR that fails CI every week. The advisories it leaves
+      # open are tracked with expiry dates in .github/audit-allowlist.json.
+      - dependency-name: next
+        update-types: [version-update:semver-major]
+      - dependency-name: eslint-config-next
+        update-types: [version-update:semver-major]
+
+  # Actions are executable code running with repository access; pinning them
+  # and updating deliberately is part of the supply chain, not housekeeping.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3

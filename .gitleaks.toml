@@ -1,0 +1,32 @@
+# gitleaks config — secret scanning over the full git history.
+#
+# The point of scanning history rather than just the diff: a secret committed
+# once and "removed" in a later commit is still in the repo forever and must be
+# rotated, not deleted. CI fails on any finding so that rotation happens.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Known-public placeholder and demo credentials — not secrets."
+
+paths = [
+  # Template values only (NEXTAUTH_SECRET="replace-with-a-long-random-string").
+  # The real .env is gitignored and must never appear here.
+  '''^\.env\.example$''',
+  # Documents the seed script's demo logins by design; see docs/DEPLOYMENT.md
+  # §5, which requires rotating them for anything beyond a disposable instance.
+  '''^README\.md$''',
+  '''^docs/DEPLOYMENT\.md$''',
+  '''^prisma/seed.*\.ts$''',
+  '''^prisma/seed-.*\.ts$''',
+]
+
+regexes = [
+  # The seed/demo passwords, which are deliberately published in the README's
+  # account table. Listed explicitly so that a *different* credential appearing
+  # in these same files is still caught.
+  '''testing@123''',
+  '''ResearcherDemo123!''',
+  '''replace-with-a-long-random-string''',
+]

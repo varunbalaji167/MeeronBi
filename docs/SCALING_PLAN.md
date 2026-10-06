@@ -61,8 +61,16 @@ one.
 regionalization backbone, and the field-visibility system is already the
 right shape for per-region field differences. A Vitest unit suite covers
 `domain/` and the database-free parts of `server/` (`docs/TESTING.md`),
-gated in CI by `.github/workflows/ci.yml`, which runs lint, a full-project
-typecheck and the test suite on every push and pull request.
+gated in CI by `.github/workflows/ci.yml`. That pipeline runs three
+independent gates on every push and pull request: static checks (lint,
+full-project typecheck, unit suite); a build-and-boot gate that applies
+every migration to an empty MySQL, builds the production bundle, starts it
+and smoke-tests the running app; and a security gate (secret scanning over
+full history, Semgrep SAST, and a dependency audit with an expiring
+allowlist). A green run on `main` deploys itself via
+`.github/workflows/deploy.yml` into an atomic release directory, with an
+automatic rollback if the new release fails its health check
+(`docs/DEPLOYMENT.md` §12–13).
 
 **Analytics** ships against this foundation:
 `/api/analytics/{fields,cohort,timeseries}` are admin- and
@@ -97,6 +105,17 @@ whenever their 30-day JWT happens to expire.
 - Backup and disaster recovery: decision criteria and a provider shortlist
   are documented in `docs/OPERATIONS.md`, but no provider has been chosen.
 - CSP with nonces is deliberately deferred; it needs its own testing pass.
+- **Next.js is pinned to 14.2.35, which is the final 14.x release** — no
+  further security patches will be published for that line. Ten open
+  advisories (two critical) have no fix below `next@16`. Each has been
+  individually assessed against this app's actual configuration and
+  accepted in `.github/audit-allowlist.json`, where every entry expires
+  2026-12-31 and will then fail CI. Five are genuinely unreachable here (no
+  Server Actions, no rewrites, no WebSockets, no Pages Router, no i18n, no
+  `next/image`); three are React Server Component DoS issues that do apply
+  and are accepted as availability-only risk at pilot scale. The 14 → 16
+  upgrade needs its own planned pass — this is the highest-priority item in
+  this list.
 
 ## Guiding principle
 
@@ -452,11 +471,13 @@ page conflates. Concretely, in order of severity:
   before there's a second real tenant to learn actual requirements from.
 - **Keep the test suite dependency-free as it grows.** The Vitest suite
   covers `domain/` and the database-free parts of `server/`, and
-  `.github/workflows/ci.yml` gates every PR on lint, a full-project
-  typecheck and that suite. Its value comes from needing no database or
-  DOM, so it runs in seconds — the pressure to add the first
-  test-container integration test should be resisted until repository-layer
-  logic genuinely can't be covered by pushing it down into `domain/`. See
+  `.github/workflows/ci.yml` gates every PR on it. Its value comes from
+  needing no database or DOM, so it runs in seconds — the pressure to add
+  the first test-container integration test should be resisted until
+  repository-layer logic genuinely can't be covered by pushing it down into
+  `domain/`. CI's separate `app` job already covers "does the app still
+  boot and answer correctly" against a real MySQL, black-box, which is the
+  need that usually motivates reaching for integration tests. See
   `docs/TESTING.md` for the coverage boundary.
 - **Decide an API versioning convention now** (`/api/v1/...`), even though
   nothing external depends on today's routes yet — cheap to decide before

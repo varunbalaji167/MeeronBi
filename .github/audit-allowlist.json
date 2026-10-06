@@ -1,0 +1,105 @@
+{
+  "_README": [
+    "High/critical advisories in the PRODUCTION dependency tree that CI is allowed to pass with.",
+    "Read by scripts/audit-gate.mjs. Anything not listed here fails CI.",
+    "",
+    "Every entry needs a 'reason' (why it is safe to ship today, specific to this app — not 'low risk')",
+    "and an 'expires' date. Past its expiry the entry stops working and CI fails, which is the point:",
+    "an accepted risk has to be re-argued on a schedule instead of quietly becoming permanent.",
+    "",
+    "To re-check an entry:  npm audit --omit=dev",
+    "To re-check the gate:  npm run audit:gate"
+  ],
+  "advisories": [
+    {
+      "ghsa": "GHSA-p293-qw3h-jr36",
+      "package": "next",
+      "severity": "critical",
+      "reason": "Unauthenticated RCE on Windows-hosted Next.js servers only. This app is deployed on Ubuntu 24.04 (docs/DEPLOYMENT.md) and has no Windows target, so the vulnerable code path is unreachable. Fixed only in next@16; see the tracking note below.",
+      "expires": "2026-12-31"
+    },
+    {
+      "ghsa": "GHSA-2xp9-vwfh-vxw4",
+      "package": "next",
+      "severity": "critical",
+      "reason": "Unauthenticated RCE in the Image Optimization API via AVIF input. This app never imports next/image and sets no images.remotePatterns/domains, so /_next/image will not fetch attacker-supplied remote images, and the app has no file-upload surface to plant a local one. Mitigated by configuration, NOT patched. Fixed only in next@16.",
+      "expires": "2026-12-31"
+    },
+    {
+      "ghsa": "GHSA-c4j6-fc7j-m34r",
+      "package": "next",
+      "severity": "high",
+      "reason": "SSRF in applications using WebSocket upgrades. This app opens no WebSocket and has no upgrade handler (verified: no 'websocket'/'socket.io' reference in src/). Vulnerable path unreachable.",
+      "expires": "2026-12-31"
+    },
+    {
+      "ghsa": "GHSA-36qx-fr4f-26g5",
+      "package": "next",
+      "severity": "high",
+      "reason": "Middleware/proxy bypass in Pages Router applications using i18n. This app is App Router only (no pages/ directory) and configures no i18n. Vulnerable path unreachable.",
+      "expires": "2026-12-31"
+    },
+    {
+      "ghsa": "GHSA-m99w-x7hq-7vfj",
+      "package": "next",
+      "severity": "high",
+      "reason": "DoS in App Router via Server Actions. This app defines no Server Actions (verified: no 'use server' directive anywhere in src/) — all mutations go through /api route handlers. Vulnerable path unreachable. NOTE: next.config.mjs still narrows serverActions.allowedOrigins defensively; if a Server Action is ever added, this entry must be re-assessed.",
+      "expires": "2026-12-31"
+    },
+    {
+      "ghsa": "GHSA-89xv-2m56-2m9x",
+      "package": "next",
+      "severity": "high",
+      "reason": "SSRF in Server Actions on custom servers. This app defines no Server Actions and runs under plain `next start` behind nginx, not a custom Node server. Vulnerable path unreachable.",
+      "expires": "2026-12-31"
+    },
+    {
+      "ghsa": "GHSA-p9j2-gv94-2wf4",
+      "package": "next",
+      "severity": "high",
+      "reason": "SSRF in rewrites via an attacker-controlled destination hostname. next.config.mjs defines no rewrites() and no redirects(). Vulnerable path unreachable.",
+      "expires": "2026-12-31"
+    },
+    {
+      "ghsa": "GHSA-h25m-26qc-wcjf",
+      "package": "next",
+      "severity": "high",
+      "reason": "ACCEPTED RESIDUAL RISK, not unreachable: DoS via HTTP request deserialization in React Server Components, which this App Router app does use. Impact is availability only — no data disclosure and no code execution. Partially mitigated by nginx in front and by per-IP rate limiting (server/http/rateLimit.ts). Accepted at single-facility pilot scale; must be resolved by the next@16 upgrade.",
+      "expires": "2026-12-31"
+    },
+    {
+      "ghsa": "GHSA-q4gf-8mx6-v5v3",
+      "package": "next",
+      "severity": "high",
+      "reason": "ACCEPTED RESIDUAL RISK: DoS with Server Components. Same reasoning, mitigation and upgrade path as GHSA-h25m-26qc-wcjf.",
+      "expires": "2026-12-31"
+    },
+    {
+      "ghsa": "GHSA-8h8q-6873-q5fj",
+      "package": "next",
+      "severity": "high",
+      "reason": "ACCEPTED RESIDUAL RISK: DoS with Server Components. Same reasoning, mitigation and upgrade path as GHSA-h25m-26qc-wcjf.",
+      "expires": "2026-12-31"
+    },
+    {
+      "ghsa": "GHSA-6g55-p6wh-862q",
+      "package": "postcss",
+      "severity": "high",
+      "reason": "Arbitrary file read via attacker-controlled sourceMappingURL in CSS. postcss here is a build-time-only transitive dependency of next/tailwind, processing only first-party CSS committed to this repo — there is no path by which untrusted CSS reaches it. Not reachable at runtime. Pinned by next@14's bundled copy; fixed only in next@16.",
+      "expires": "2026-12-31"
+    },
+    {
+      "ghsa": "GHSA-r28c-9q8g-f849",
+      "package": "postcss",
+      "severity": "high",
+      "reason": "Same build-time-only postcss source-map path traversal as GHSA-6g55-p6wh-862q; same reasoning and same next@16 fix.",
+      "expires": "2026-12-31"
+    }
+  ],
+  "_TRACKING": [
+    "Almost every entry above shares one root cause: next is pinned to 14.2.35, which is the FINAL 14.x",
+    "release. There will be no further 14.x security patches — npm reports the only fix as next@16.3.8,",
+    "a two-major upgrade. Every entry here expires 2026-12-31 to force that upgrade to be scheduled",
+    "rather than deferred indefinitely. See docs/SCALING_PLAN.md 'Known gaps'."
+  ]
+}
