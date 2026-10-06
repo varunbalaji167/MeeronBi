@@ -11,15 +11,7 @@ const INVITE_EXPIRES_IN_DAYS = 7;
 
 export type PatientPortalAccessMethod = { kind: "password"; password: string } | { kind: "invite" };
 
-/**
- * Creates or replaces a patient's portal login. A patient has at most one login: if they already have one, updates it in place;
- * refuses if the requested email already belongs to someone else.
- *
- * `method: "password"` is today's in-person handover and sends no email — deliberately: the email on
- * file may be a placeholder or a relative's, and staff are handing the credential over directly, so a
- * notification would be redundant at best and a bounce to triage at worst. `method: "invite"` is the
- * opposite: no password is typed here, and an ACCOUNT_INVITE link is emailed instead.
- */
+/** `password`: in-person handover, no email (addresses may be placeholders). `invite`: email an ACCOUNT_INVITE link, no password typed. */
 export async function setPatientPortalAccess(
   patientId: string,
   rawEmail: string,

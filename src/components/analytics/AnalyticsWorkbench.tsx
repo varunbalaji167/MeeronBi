@@ -38,12 +38,7 @@ async function fetchCohortResult(field: AnalyticsFieldMeta, filter: AnalyticsFie
   return res.json();
 }
 
-// Keyed by field(+filter), outside React state entirely — `useMemo` alone isn't a safe cache for a
-// Suspense resource: React (in Strict Mode, at least) can re-invoke a suspended component's
-// render multiple times while it's pending, and each call recomputed a fresh `useMemo` value,
-// re-firing the fetch every time (confirmed live: one query fired 500+ duplicate POSTs). An
-// external cache, like `useAnalyticsFields`'s module-level singleton, is invoked idempotently
-// no matter how many times React (re)tries the render.
+// External module cache (not useMemo): a suspended render re-invokes, so `useMemo` fired 500+ duplicate POSTs.
 const cohortResultCache = new Map<string, ReturnType<typeof createResource<AnalyticsResult>>>();
 
 function getCohortResource(field: AnalyticsFieldMeta, filter: AnalyticsFieldMeta | null) {

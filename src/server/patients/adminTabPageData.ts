@@ -4,10 +4,7 @@ import { isCustomizable } from "@/domain/fieldVisibility";
 import { getTabRecord } from "./tabRecordRepository";
 import { getStoredFieldSelection } from "./fieldPreferenceService";
 
-/**
- * Everything an admin tab page needs for first paint, read in parallel. Callers sit under
- * [id]/layout.tsx, which has already proven access to this patient; the selection is scoped to the admin's own facility.
- */
+/** Caller must sit under `[id]/layout.tsx`, which has already proven patient access. */
 export async function loadAdminTabPageData(tabKey: string, patientId: string) {
   const tab = getTabByKey(tabKey);
   const session = await requireAdminSession();

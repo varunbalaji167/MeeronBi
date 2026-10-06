@@ -1,11 +1,8 @@
-// Pure credential-token policy — no Prisma import, so this file stays framework-free.
-// The purpose union is redeclared locally rather than imported from @prisma/client.
+// Framework-free token policy; purpose union redeclared locally to keep @prisma/client out of domain/.
 
 export type TokenPurpose = "EMAIL_VERIFICATION" | "ACCOUNT_INVITE" | "PASSWORD_RESET";
 
-// The TTLs differ deliberately: a 7-day invite is fine (a newly provisioned admin may not
-// check mail today), but a 1-hour reset window is a security boundary, not generosity to
-// be extended — a live reset link is an account takeover vector.
+// 1h reset is a security boundary (live link = takeover vector); 7d invite isn't.
 export const TTL_MS_BY_PURPOSE: Record<TokenPurpose, number> = {
   ACCOUNT_INVITE: 7 * 24 * 60 * 60_000,
   EMAIL_VERIFICATION: 24 * 60 * 60_000,

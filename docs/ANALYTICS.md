@@ -88,9 +88,8 @@ of a chart that would meaningfully use either as a trend.
 
 Note on `bmi`: the spec says "this is pre-pregnancy weight" but there's no
 dedicated pre-pregnancy-weight field in the dataset — `weightFirstVisitKg`
-("Wt. in First Visit") is the closest available proxy. Worth confirming
-with whoever owns the clinical requirements before this ships, since it's
-an assumption, not something the spec states outright.
+("Wt. in First Visit") is the closest available proxy. This assumption still
+needs sign-off from the clinical owner.
 
 ## 5. Time-series mode
 

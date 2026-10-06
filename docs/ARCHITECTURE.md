@@ -696,23 +696,5 @@ writes data must go through one of them.
 
 ## Testing strategy
 
-The layering above is what keeps the test suite cheap to run: it needs no
-database, no HTTP server and no React renderer. Tests are written with Vitest
-and colocated as `*.test.ts` next to the source. `npm test` runs the suite and
-CI enforces it on every PR (`.github/workflows/ci.yml`).
-
-- **`domain/`** is the primary target — pure functions, no mocking required.
-  `computeRobsonGroup()`, `validateAllFields()`, `resolveVisibleFieldNames()`
-  and `validatePhoneValue()` each have a colocated test file, as does every
-  module under `domain/analytics/`.
-- **`server/`** modules with no database dependency are unit-tested the same
-  way: the HTTP helpers (`parseJson`, `rateLimit`, `logger`, `audit`,
-  `withApiErrorHandling`), the typed error hierarchies, and analytics
-  aggregation.
-- **Repositories, route handlers and React components** are deliberately not
-  unit-tested; they need a live database or a DOM, and they are thin enough
-  that the logic worth asserting has already been pushed down into the two
-  layers above.
-
-See `docs/TESTING.md` for the full coverage boundary and the reasoning behind
-it.
+See `docs/TESTING.md` — this layering is what lets the suite run without a
+database, HTTP server, or React renderer.

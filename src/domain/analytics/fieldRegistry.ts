@@ -1,7 +1,4 @@
-// Builds the Analytics field picker's list by walking the tab configs — see docs/ANALYTICS.md
-// §3 for the classification rules this implements. Nothing here talks to the database; it only
-// reads the static tab configs in domain/tabs, so the registry is always in sync with whatever
-// fields the forms actually collect.
+// Picker list derived from tab configs so it never drifts from the forms. See docs/ANALYTICS.md §3.
 
 import { allTabs, isGridSection, isPlainSection, isRepeatingSection, FieldConfig, FieldType } from "@/domain/tabs";
 import { AnalyticsFieldMeta, STANDARD_SEGMENTS } from "./types";

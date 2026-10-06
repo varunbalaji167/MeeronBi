@@ -1,10 +1,7 @@
 import { prisma } from "@/server/db/prisma";
 import { getDefaultFacility } from "@/server/facilities/facilityRepository";
 
-/**
- * Backs the public, unauthenticated /public/trends page. Every query returns counts/averages only — never individual patient rows.
- * Resolves the facility via getDefaultFacility(); returns all-zero trends (not an error) if none is seeded yet.
- */
+/** Public /public/trends backing query — aggregates only, never patient rows. */
 export async function getPublicTrends() {
   const facility = await getDefaultFacility();
   if (!facility) {

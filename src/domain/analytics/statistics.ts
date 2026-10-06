@@ -1,6 +1,4 @@
-// Summary statistics for a Ratio field's values — see docs/ANALYTICS.md §2's "Central
-// tendencies" cell. Callers are responsible for filtering to non-null/finite values first
-// (resolveValue.ts's resolvers already return null for anything that can't be included).
+// Callers must pre-filter to finite values. See docs/ANALYTICS.md §2.
 
 import { CentralTendencies } from "./types";
 

@@ -1,24 +1,5 @@
-/**
- * Manual QA only — NOT run automatically by `npm run seed`. Adds 6 COMPLETE patients
- * whose Treatments > Measurements rows carry `tsh` + `weightKg` values across all four
- * trimester buckets (pre-pregnancy, T1, T2, T3), so the time-series Analytics feature
- * (analytics-plan/step-11, step-12) has real, multi-point data to demo:
- *
- *   - Single-patient mode: pick "TSH (mU/L)" for any one of these patients — a full
- *     4-point line against STANDARD_SEGMENTS.tsh's reference band. Two patients run a
- *     consistently elevated TSH so their line visibly clears the band.
- *   - Cohort mode: all 6 share one district ("Kakching") that no other seeded patient
- *     uses, so grouping by District is the one category with n=6 — above
- *     MIN_CELL_SIZE.internal (5) in disclosureControl.ts. Every other seeded patient
- *     (prisma/seed.ts, prisma/seed-analytics-demo.ts) has a district all their own,
- *     which suppresses every cohort-mode category — this is the one that won't.
- *
- * Usage:
- *   npx tsx prisma/seed-timeseries-demo.ts
- *
- * Prerequisite: npm run seed (creates the "default" facility + its admin).
- * Safe to run multiple times — skips any patient whose MRD already exists.
- */
+// Manual QA fixture (`npx tsx prisma/seed-timeseries-demo.ts`, after `npm run seed`): 6 patients sharing one district
+// so cohort-mode grouping clears MIN_CELL_SIZE.internal; two run an elevated TSH to visibly leave the reference band.
 import { PrismaClient } from "@prisma/client";
 import { formatPhoneValue } from "@/domain/phone";
 
@@ -53,9 +34,6 @@ interface PatientSpec {
   weightOffsetKg: number;
 }
 
-// A district none of the other seed scripts use — every other seeded patient has a district all
-// their own, which suppresses every cohort-mode category (n=1 < MIN_CELL_SIZE.internal). All 6 here
-// share this one so cohort time-series has exactly one category that clears the threshold.
 const DISTRICT = "Kakching";
 
 const PATIENTS: PatientSpec[] = [

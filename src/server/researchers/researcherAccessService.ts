@@ -151,11 +151,7 @@ export async function createResearcherRequestFromGoogle(
   }
 }
 
-/**
- * Called by the verify-email flow (never signup) after a RESEARCHER's emailVerifiedAt is stamped.
- * Sequencing is the point: super admins hear about a request only once its address is proven real,
- * so a typo'd or junk signup never reaches the review queue.
- */
+/** Fires only after email verification, never at signup, so junk/typo'd addresses never reach the review queue. */
 export async function notifySuperAdminsOfResearcherRequest(tx: Prisma.TransactionClient, userId: string): Promise<void> {
   const user = await tx.user.findUnique({
     where: { id: userId },

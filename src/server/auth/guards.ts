@@ -5,25 +5,13 @@ import { UnauthorizedError, ForbiddenError } from "@/server/http/errors";
 import { sessionStaleError, wrongRoleError, researcherNotApprovedError } from "./errors";
 import { patientNotFoundInFacilityError } from "@/server/patients/errors";
 
-/**
- * Access-control guards used by every API route/server layout; throw typed errors instead of returning a result union.
- * Roles: SUPER_ADMIN (all facilities), ADMIN (own facility), PATIENT (own record), RESEARCHER (analytics-only, gated separately).
- * facilityId is the tenant boundary for ADMIN/PATIENT; a cross-facility patient reports NotFoundError, never ForbiddenError.
- * SUPER_ADMIN's facilityId is an administrative home only and bypasses the facility-match check everywhere below.
- * Google authenticates, this database authorizes: Google sign-in can only sign into an account that
- * already exists here, never from the Google profile — see domain/auth/googleSignIn.ts.
- */
+// Role matrix and tenant-boundary rules: docs/ARCHITECTURE.md § auth.
 
 export async function getSession() {
   return getServerSession(authOptions);
 }
 
-/**
- * Confirms the session's user id still exists (catching a stale cookie left over from a DB reset/reseed)
- * and that its passwordChangedAt still matches the DB. Sessions are 30-day JWTs with no rotation, so without
- * this a password reset would not evict a session an attacker already holds — comparing this one extra
- * column (already fetched on every request guards run) makes a reset actually mean something.
- */
+// Re-checks `passwordChangedAt` so a password reset actually evicts sessions an attacker already holds (JWTs don't rotate).
 async function assertSessionFresh(session: Session): Promise<void> {
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
@@ -126,10 +114,7 @@ export async function requireAnalyticsSession(): Promise<Session> {
   throw wrongRoleError("Analytics access requires admin or approved researcher access.");
 }
 
-/**
- * A patient record is visible to an admin at that patient's own facility, any SUPER_ADMIN, or the patient themselves.
- * Throws NotFoundError for a different facility's patient, ForbiddenError for a patient session reaching someone else's record.
- */
+/** Cross-facility access reports NotFoundError; a patient session reaching another patient reports ForbiddenError. */
 export async function assertPatientRecordAccessible(patientId: string): Promise<Session> {
   const session = await getSession();
   if (!session?.user) throw new UnauthorizedError();

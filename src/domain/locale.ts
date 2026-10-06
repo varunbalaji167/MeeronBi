@@ -1,7 +1,4 @@
-// Facility-level date/measurement-unit formatting. Deliberately not full i18n — no string
-// translation, no pluralization rules. Just enough that gestational-age/measurement display
-// isn't hardcoded to one region, so a second facility with different conventions doesn't need
-// this rewritten from scratch. See docs/SCALING_PLAN.md §2.
+// Facility-level date/unit formatting — not full i18n. See docs/SCALING_PLAN.md §2.
 
 export type Locale = "en-IN" | "en-US";
 
@@ -34,10 +31,7 @@ export function formatDate(d: Date, locale: Locale): string {
   return LOCALES[locale].dateStyle === "dd-mm-yyyy" ? `${day}-${month}-${year}` : `${month}-${day}-${year}`;
 }
 
-/**
- * Parses a date string in the facility's locale style. Returns null rather than throwing on a
- * malformed string, matching computeGestationalAge's null-on-bad-input convention.
- */
+/** Null on bad input (matches computeGestationalAge). */
 export function parseDate(s: string, locale: Locale): Date | null {
   const match = /^(\d{1,2})-(\d{1,2})-(\d{4})$/.exec(s.trim());
   if (!match) return null;
@@ -50,10 +44,7 @@ export function parseDate(s: string, locale: Locale): Date | null {
   return date;
 }
 
-/**
- * Formats a stored metric value (cm or kg — how every existing field is stored) in the
- * facility's preferred display unit, converting if needed.
- */
+/** Values are stored metric (cm/kg); converts if the facility's locale prefers imperial. */
 export function formatMeasurement(value: number, unit: "cm" | "kg", locale: Locale): string {
   const targetLength = LOCALES[locale].units.length;
   const targetMass = LOCALES[locale].units.mass;

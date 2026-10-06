@@ -11,9 +11,7 @@ const RATE_LIMIT = { limit: 3, windowMs: 60 * 60_000 };
 
 const requestBodySchema = z.object({ email: z.string() });
 
-// Public by design: an unverified account can't sign in to reach an authenticated resend action, so this
-// has to be reachable without a session. Always responds 200 regardless of whether the account exists or
-// is already verified (see resendVerificationEmail) — same no-enumeration rule as password-reset/request.
+// Public (unverified users have no session); always 200, no-enumeration — same rule as password-reset/request.
 export const POST = withApiErrorHandling(async (req: NextRequest) => {
   const body = await parseJson(req, requestBodySchema);
   const email = body.email.toLowerCase().trim();

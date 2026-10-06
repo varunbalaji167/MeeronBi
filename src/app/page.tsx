@@ -101,7 +101,6 @@ const accentClasses: Record<string, { badge: string; border: string; cta: string
 export default function HomePage() {
   return (
     <main className="min-h-screen overflow-x-clip">
-      {/* Top nav */}
       <header className="sticky top-0 z-20 border-b border-line bg-paper/90 backdrop-blur">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
           <Link href="/" className="font-display text-lg italic text-ink">
@@ -125,7 +124,7 @@ export default function HomePage() {
             </Link>
           </nav>
 
-          {/* Mobile menu — a native <details> disclosure keeps this page fully static (no client JS needed) */}
+          {/* Native <details> keeps this page client-JS-free. */}
           <details className="relative sm:hidden">
             <summary className="flex h-9 w-9 cursor-pointer list-none items-center justify-center rounded-md text-ink-soft transition-colors hover:bg-white hover:text-ink [&::-webkit-details-marker]:hidden">
               <Menu className="h-5 w-5" />
@@ -151,9 +150,8 @@ export default function HomePage() {
         </div>
       </header>
 
-      {/* Hero */}
       <section className="relative">
-        {/* Decorative background accents — purely visual, no layout impact */}
+        {/* Decorative accents — visual only, no layout impact. */}
         <div className="pointer-events-none absolute -top-24 right-[-10%] h-72 w-72 rounded-full bg-brand-200/30 blur-3xl" aria-hidden="true" />
         <div className="pointer-events-none absolute left-[-8%] top-40 h-56 w-56 rounded-full bg-gold-200/25 blur-3xl" aria-hidden="true" />
 
@@ -191,7 +189,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Mission */}
       <section id="mission" className="scroll-mt-16 border-t border-line bg-white">
         <div className="mx-auto max-w-5xl px-6 py-16">
           <p className="flex items-center gap-1.5 text-sm font-medium text-brand-600">
@@ -212,7 +209,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Who it's for */}
       <section className="mx-auto max-w-5xl px-6 py-16">
         <p className="text-sm font-medium text-brand-600">Who it&apos;s for</p>
         <h2 className="mt-2 font-display text-2xl italic text-ink sm:text-3xl">
@@ -245,7 +241,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Team */}
       <section id="team" className="scroll-mt-16 border-t border-line bg-white">
         <div className="mx-auto max-w-5xl px-6 py-16">
           <p className="text-sm font-medium text-brand-600">Our team</p>
@@ -274,7 +269,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Footer */}
       <footer className="border-t border-line">
         <div className="mx-auto max-w-5xl px-6 py-10 text-sm text-ink-faint">
           <p className="font-display text-base italic text-ink">MeeronBi</p>

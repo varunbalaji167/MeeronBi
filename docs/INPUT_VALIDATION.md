@@ -8,16 +8,10 @@ architecture.
 
 ## Why this exists
 
-Two problems, one fix. (1) Free-text fields that are really closed sets
-(District, Religion...) fragment Analytics' categorical breakdowns —
-"Imphal East" / "imphal east" / "Imphal-East" become three buckets instead
-of one. (2) Nothing on the server actually enforced that a `select`'s value
-was one of its own options, that a number was a number, or that an array
-couldn't be arbitrarily large — a hand-built request could write anything
-into any field. Tightening the input (fewer free-text boxes, more
-closed/structured controls) and hardening the backend (reject/clean
-whatever the input tightening didn't prevent) are the same effort looked at
-from two ends, so they're done together here.
+(1) Free-text fields that are really closed sets fragment analytics
+(`Imphal East` vs `imphal east`). (2) Nothing on the server enforced that
+a `select`'s value matched its options, or that a payload shape was sane.
+Both are the same work from two ends.
 
 ## The foundation
 

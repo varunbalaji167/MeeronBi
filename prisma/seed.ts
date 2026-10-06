@@ -4,11 +4,7 @@ import { formatPhoneValue } from "@/domain/phone";
 
 const prisma = new PrismaClient();
 
-// ---------------------------------------------------------------------------
-// Date helpers — everything is computed relative to "today" (whenever this
-// seed is actually run) so the demo patient always looks like a recently
-// completed pregnancy, instead of baking in dates that go stale.
-// ---------------------------------------------------------------------------
+// Dates are relative to "today" so the demo patient never looks stale.
 function fmtDate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
@@ -65,19 +61,7 @@ Change this password after first login. This account can see every facility.`);
   return superAdmin;
 }
 
-/**
- * Three researcher accounts covering all three review states, so
- * /admin/researchers has real data to look at immediately after seeding
- * instead of an empty "no requests" screen in every tab, and so the
- * pending/approved/rejected sign-in messages (see authOptions.ts's
- * authorize()) can each actually be tried without filling out the request
- * form by hand first. Uses raw prisma calls rather than
- * requestResearcherAccess()/approveResearcher() from
- * server/researchers/researcherAccessService.ts — consistent with the rest
- * of this file's style, and avoids spinning up a second PrismaClient
- * instance (that service module imports the app's own singleton) inside a
- * short-lived seed script.
- */
+// One researcher per review state so every pending/approved/rejected code path has real data.
 async function seedResearchers(hqFacilityId: string, superAdminId: string) {
   const passwordHash = await bcrypt.hash("ResearcherDemo123!", 10);
 
@@ -479,16 +463,7 @@ async function seedDemoPatient(createdById: string, facilityId: string) {
   View it as staff at /admin/patients/${patient.id}/personal, or sign in as the patient at /login?role=patient.`);
 }
 
-/**
- * A second, deliberately UNFINISHED patient — a brand-new record with just
- * the Personal tab started and left as a DRAFT, no other tabs touched at
- * all. Exists so the patient list has more than one row to search/paginate
- * through, and so the "Draft" status badges, incomplete-tab indicators, and
- * Mark-Complete validation are all something you can look at immediately
- * rather than only after creating a patient by hand. Also exercises the
- * `allowOther` custom-value path on `district` for real (the main demo
- * patient's district is a listed option; this one deliberately isn't).
- */
+// A second, deliberately-draft patient so the list has multiple rows and draft/allowOther UI paths render out of the box.
 async function seedDraftPatient(createdById: string, facilityId: string) {
   const DRAFT_MRN = "DEMO-0002";
   const existing = await prisma.patient.findUnique({ where: { facilityId_mrn: { facilityId, mrn: DRAFT_MRN } } });

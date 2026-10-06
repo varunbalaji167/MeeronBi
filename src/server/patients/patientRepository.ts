@@ -86,10 +86,7 @@ export async function createPatient({ fullName, createdById, facilityId }: Creat
   });
 }
 
-/**
- * Syncs the denormalized Patient.fullName/mrn/contactNo columns from the Personal tab (the source of truth), called after every save.
- * MRD is unique per facility; on a conflict, name/phone still sync and the caller is told to warn the user rather than failing the whole save.
- */
+/** MRD conflicts surface via `{ mrnConflict }` instead of throwing, so name/phone still sync on a dup MRD. */
 export async function syncPatientSummaryFromPersonal(
   patientId: string,
   personalData: Record<string, any>,
@@ -163,10 +160,7 @@ export async function getPatientHeaderInfo(id: string, facilityId?: string) {
   });
 }
 
-/**
- * Deletes a patient (tab records cascade via the DB) and their portal login, if any, deleted explicitly since the FK points the other way.
- * Caller must already have confirmed `id` belongs to their facility (via `requireAdminSessionForPatient`) — not re-checked here.
- */
+/** Caller must have verified facility access (e.g. via `requireAdminSessionForPatient`); portal user deleted explicitly (FK direction). */
 export async function deletePatient(id: string, actorUserId?: string) {
   const patient = await prisma.patient.findUnique({ where: { id } });
   if (!patient) return prisma.patient.delete({ where: { id } });

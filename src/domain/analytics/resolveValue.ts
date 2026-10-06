@@ -1,6 +1,4 @@
-// Resolves a FieldRef to a single patient's value for cohort aggregation — see docs/ANALYTICS.md §2-§4.
-// Every function here is total: bad/missing data returns null rather than throwing, so the
-// aggregation layer can compute denominators from present values only (never partial-crash a query).
+// Total resolvers: null on bad/missing data, never throw. See docs/ANALYTICS.md §2–§4.
 
 import { FieldRef } from "./types";
 import { computeAge, computeBmi } from "./derivedFields";

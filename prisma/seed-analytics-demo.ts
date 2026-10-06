@@ -1,17 +1,5 @@
-/**
- * Manual QA only — NOT run automatically by `npm run seed`. Adds 10 COMPLETE
- * patients (5 per facility) spanning Robson groups 1–10 and a mix of
- * delivery modes/complications, so the Analytics feature and the
- * super-admin facility filter/column (analytics-plan/step-03) have real,
- * varied cross-facility data to test against instead of the single demo
- * patient from prisma/seed.ts.
- *
- * Usage:
- *   npx tsx prisma/seed-analytics-demo.ts
- *
- * Prerequisite: npm run seed (creates the "default" facility + its admin).
- * Safe to run multiple times — skips any patient whose MRD already exists.
- */
+// Manual QA fixture (`npx tsx prisma/seed-analytics-demo.ts`, after `npm run seed`): 10 cross-facility patients
+// spanning Robson groups 1–10 so Analytics and the super-admin facility filter have varied data to render.
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { formatPhoneValue } from "@/domain/phone";

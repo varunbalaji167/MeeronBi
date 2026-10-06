@@ -47,10 +47,7 @@ export function validateAllFields(tab: TabConfig, data: Record<string, any>): Re
   return errors;
 }
 
-/**
- * Server-side normalization applied to every save. Rebuilds the record from the tab's own field
- * list as an allowlist and narrows each value to what its field type can hold; never rejects a save, only cleans it.
- */
+/** Allowlist by field type; cleans every save (draft or complete), never rejects. */
 export function sanitizeTabData(tab: TabConfig, data: Record<string, any>): Record<string, any> {
   const result: Record<string, any> = {};
 

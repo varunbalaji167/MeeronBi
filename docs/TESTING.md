@@ -56,7 +56,7 @@ with the stack trace that caused it.
 `scripts/smoke.sh` probes a running instance. CI and the deploy health gate
 use the same script, so what passes in CI is what is checked in production.
 
-25 assertions across four groups:
+Assertions fall in four groups:
 
 - **Liveness** — `/api/health` reports `ok` with a reachable database, and its
   timestamp changes between calls. A prerendered health check would report

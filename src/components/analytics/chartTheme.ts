@@ -1,9 +1,6 @@
 import { brand, gold, rose, line, ink, chartExtras } from "@/lib/design/palette";
 
-// Shared recharts theming for the app's aggregate charts (public trends + analytics workbench),
-// so both read as one visual system. Categorical hues are assigned in this fixed order — never
-// cycled arbitrarily per-chart — per the dataviz skill's color-formula guidance.
-// Literal hex from the palette, not CSS vars: recharts fills/legend icons can't resolve var().
+// Literal hex (not CSS vars): recharts fills/legend icons can't resolve var().
 export const CHART_COLORS = [brand[500], gold[500], brand[300], rose[500], brand[400], gold[200]];
 
 export const CHART_GRID_STROKE = line.DEFAULT;

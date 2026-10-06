@@ -27,10 +27,6 @@ export interface MappedPatient {
   notes: string[];
 }
 
-// ---------------------------------------------------------------------------
-// Parsing the register's free-typed cells
-// ---------------------------------------------------------------------------
-
 /** Parses CSV text into header-keyed rows; a repeated header keeps its first column (the register repeats one). */
 export function parseCsv(text: string): RegisterRow[] {
   const records: string[][] = [];
@@ -160,10 +156,6 @@ function compact(data: Record<string, unknown>): TabData {
   return Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined && v !== null && v !== ""));
 }
 
-// ---------------------------------------------------------------------------
-// Synthetic identity
-// ---------------------------------------------------------------------------
-
 // Real names, MRDs, phone numbers and addresses are never read; every record gets a deterministic stand-in instead.
 const SURNAMES = [
   "Laishram", "Thokchom", "Khumanthem", "Chongtham", "Salam", "Oinam", "Ningthoujam", "Huidrom", "Sorokhaibam", "Wahengbam",
@@ -181,10 +173,6 @@ export function syntheticIdentity(sourceId: number): SyntheticIdentity {
   const suffix = sourceId % 3 === 0 ? "Chanu" : "Devi";
   return { fullName: `${surname} ${name} ${suffix}`, surname, name, mrn: `CSR-${String(sourceId).padStart(3, "0")}` };
 }
-
-// ---------------------------------------------------------------------------
-// Clinical vocabulary: register wording -> tab options
-// ---------------------------------------------------------------------------
 
 const PREGNANCY_COMPLICATION_RULES: [RegExp, string][] = [
   [/\bPIH\b/, "PIH"],
@@ -236,10 +224,6 @@ const PLACENTA_LOCATIONS: [RegExp, string][] = [
 // The register's TSH 1-3 are undated; one reading per trimester lets time-series analytics bucket them.
 const TSH_READING_WEEKS = [10, 20, 30];
 
-// ---------------------------------------------------------------------------
-// Robson
-// ---------------------------------------------------------------------------
-
 const TERM = "Term: 37 weeks or more";
 const PRETERM = "Preterm: Less than 37 weeks";
 
@@ -271,10 +255,6 @@ export function parseRobson(value: string | null): { group: number; subgroup: "A
   const match = value?.trim().toUpperCase().match(/^(10|[1-9])([AB])?$/);
   return match ? { group: Number(match[1]), subgroup: (match[2] as "A" | "B" | undefined) ?? null } : null;
 }
-
-// ---------------------------------------------------------------------------
-// Row -> tabs
-// ---------------------------------------------------------------------------
 
 /** Runs a payload through the app's own save-path cleaning; anything it would alter or reject is reported, not kept. */
 export function finalizeTab(tabKey: TabKey, data: TabData, notes: string[]): TabData {
