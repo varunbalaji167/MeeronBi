@@ -1,16 +1,20 @@
 import { defineConfig } from "vitest/config";
 import path from "path";
 
-// Node-only environment for pure TS unit tests (no DOM, no React).
+// Node is the default so the pure domain/server tests stay fast; only src/components/**
+// pays the jsdom cost. tsconfig's `jsx: preserve` is for Next, so esbuild gets its own setting.
 export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  esbuild: { jsx: "automatic" },
   test: {
     environment: "node",
-    include: ["src/**/*.test.ts", "prisma/**/*.test.ts"],
+    environmentMatchGlobs: [["src/components/**", "jsdom"]],
+    setupFiles: ["src/test/setup.ts"],
+    include: ["src/**/*.test.{ts,tsx}", "prisma/**/*.test.ts"],
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov"],
@@ -22,6 +26,7 @@ export default defineConfig({
       // make the number meaningless.
       include: [
         "src/domain/**",
+        "src/lib/design/**",
         "src/server/analytics/aggregate.ts",
         "src/server/analytics/analyticsService.ts",
         "src/server/auth/errors.ts",

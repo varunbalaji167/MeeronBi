@@ -65,7 +65,7 @@
 @layer components {
   /* ---------- form controls ---------- */
   .input-field {
-    @apply w-full rounded-md border border-line bg-white px-3 py-2 text-[13.5px] text-ink placeholder:text-ink-faint/70 shadow-sm transition-colors;
+    @apply w-full rounded-md border border-line-strong bg-white px-3 py-2 text-[13.5px] text-ink placeholder:text-ink-faint shadow-sm transition-colors;
     @apply focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400;
   }
   .input-field:disabled {
@@ -114,5 +114,26 @@
   }
   .badge-complete {
     @apply inline-flex items-center gap-1 rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-700;
+  }
+}
+
+/* Outside any @layer so it out-ranks component and utility rules. Not the stock snippet:
+   iteration-count 1 would freeze every spinner, so spin stays infinite (slower) and pulse goes static. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .animate-spin {
+    animation-duration: 1.6s !important;
+    animation-iteration-count: infinite !important;
+  }
+  .animate-pulse {
+    animation: none !important;
+    opacity: 0.6;
   }
 }

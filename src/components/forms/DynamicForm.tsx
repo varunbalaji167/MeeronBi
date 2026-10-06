@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { TabConfig, isGridSection, isRepeatingSection } from "@/domain/tabs";
 import { getIncompleteReasons, getFieldLevelErrors } from "@/domain/validation";
 import { GestationalAge } from "@/domain/gestationalAge";
+import { fieldIds } from "./fieldIds";
 import PlainSection from "./sections/PlainSection";
 import GridSection from "./sections/GridSection";
 import RepeatingSection from "./sections/RepeatingSection";
@@ -113,12 +114,22 @@ export default function DynamicForm({
     setDirty(true);
   }
 
+  // Errors can name hidden fields, so pick the first one actually in the DOM, in document order.
+  function focusFirstField(names: string[]) {
+    const els = names
+      .map((n) => document.getElementById(fieldIds(n).inputId))
+      .filter((el): el is HTMLElement => el !== null);
+    els.sort((a, b) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
+    els[0]?.focus();
+  }
+
   async function handleSave(nextStatus: Status, opts: { toastMessage?: string | null } = {}) {
     if (nextStatus === "COMPLETE") {
       const reasons = getIncompleteReasons(tab, data);
       const fieldErrorNames = Object.keys(errors);
       if (reasons.length > 0 || fieldErrorNames.length > 0) {
         setTouched(new Set(fieldErrorNames));
+        focusFirstField(fieldErrorNames);
         showToast(
           fieldErrorNames.length > 0
             ? "Please fix the highlighted fields before marking this tab complete."

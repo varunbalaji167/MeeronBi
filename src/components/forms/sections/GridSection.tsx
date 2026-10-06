@@ -45,6 +45,7 @@ export default function GridSection({ section, data, setField, readOnly, ga }: P
                       value={data[key]}
                       onChange={(v) => setField(key, v)}
                       disabled={readOnly}
+                      ariaLabel={`${row.label}, ${col.label}`}
                       compact
                     />
                   </td>

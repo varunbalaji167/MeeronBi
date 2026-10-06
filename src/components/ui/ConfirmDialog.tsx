@@ -67,7 +67,7 @@ export default function ConfirmDialog({
             }`}
             aria-hidden="true"
           >
-            <AlertTriangle className="h-4.5 w-4.5" />
+            <AlertTriangle className="h-5 w-5" />
           </span>
           <div>
             <h3 id={titleId} className="font-semibold text-ink">

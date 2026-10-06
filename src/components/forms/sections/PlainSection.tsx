@@ -2,6 +2,7 @@
 
 import { SectionConfig } from "@/domain/tabs";
 import FieldInput from "../FieldInput";
+import { fieldIds } from "../fieldIds";
 import GestationalWindowBadge from "../GestationalWindowBadge";
 import { GestationalAge } from "@/domain/gestationalAge";
 
@@ -46,22 +47,31 @@ export default function PlainSection({
         </h3>
       )}
       <div className={`grid grid-cols-1 gap-4 ${gridClass}`}>
-        {fields.map((field) => (
-          <div key={field.name}>
-            <label className="label-text" htmlFor={field.name}>
-              {field.label}
-            </label>
-            <FieldInput
-              field={field}
-              value={data[field.name]}
-              onChange={(v) => setField(field.name, v)}
-              onBlur={() => onBlurField(field.name)}
-              error={touched.has(field.name) ? errors[field.name] : null}
-              disabled={readOnly}
-            />
-            {field.helpText && <p className="mt-1 text-xs text-ink-faint/70">{field.helpText}</p>}
-          </div>
-        ))}
+        {fields.map((field) => {
+          const { inputId, labelId } = fieldIds(field.name);
+          const isGroup = field.type === "radio" || field.type === "multiselect";
+          return (
+            <div key={field.name}>
+              {isGroup ? (
+                <span id={labelId} className="label-text">
+                  {field.label}
+                </span>
+              ) : (
+                <label className="label-text" htmlFor={inputId}>
+                  {field.label}
+                </label>
+              )}
+              <FieldInput
+                field={field}
+                value={data[field.name]}
+                onChange={(v) => setField(field.name, v)}
+                onBlur={() => onBlurField(field.name)}
+                error={touched.has(field.name) ? errors[field.name] : null}
+                disabled={readOnly}
+              />
+            </div>
+          );
+        })}
       </div>
     </section>
   );

@@ -182,6 +182,16 @@ forms accept and reproduces the clinician's own Robson group on every row.
   customize — is worth protecting from an accidental regression, not
   because the config needed testing.
 
+## Component tests
+
+React components can now be tested: `*.test.tsx` files under
+`src/components/**` run under jsdom with React Testing Library and
+`@testing-library/jest-dom` matchers (registered in `src/test/setup.ts`).
+Everything else stays on the default node environment, so the pure
+`domain/` and `server/` tests pay no jsdom cost. These are dev-only
+dependencies — nothing here ships in the bundle. `ui/Spinner.test.tsx` is
+the minimal example to copy from.
+
 ## Adding a test
 
 Colocate it next to the source, import from `vitest`, and follow the

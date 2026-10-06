@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Phone, Mail, MapPin, User } from "lucide-react";
 import { FieldConfig } from "@/domain/tabs";
+import { fieldIds } from "./fieldIds";
 import {
   COUNTRY_CODES,
   PhoneValue,
@@ -22,26 +23,63 @@ interface Props {
   error?: string | null;
   disabled?: boolean;
   compact?: boolean;
+  /** Disambiguates ids and radio names when the same field renders more than once (repeating rows). */
+  idScope?: string;
+  /** Accessible name for controls with no visible label of their own (table cells). */
+  ariaLabel?: string;
 }
 
 const ICON_MAP = { phone: Phone, email: Mail, location: MapPin, user: User };
 
-export default function FieldInput({ field, value, onChange, onBlur, error, disabled, compact }: Props) {
+export default function FieldInput({
+  field,
+  value,
+  onChange,
+  onBlur,
+  error,
+  disabled,
+  compact,
+  idScope,
+  ariaLabel,
+}: Props) {
   // Tracks whether the person picked "Other" and is typing a custom value.
   const [otherMode, setOtherMode] = useState(false);
 
   const Icon = field.icon ? ICON_MAP[field.icon] : null;
   const inputClass = `input-field ${Icon ? "pl-9" : ""} ${
-    error ? "!border-rose-400 focus:!border-rose-400 focus:!ring-rose-400" : ""
+    error ? "border-danger-border focus:border-danger-border focus:ring-danger-border" : ""
   }`;
 
+  // Help text is skipped in compact table cells, where the column header already explains the field.
+  const helpText = compact ? undefined : field.helpText;
+  const { inputId, errorId, helpId, labelId, describedBy } = fieldIds(field.name, {
+    scope: idScope,
+    hasError: !!error,
+    hasHelp: !!helpText,
+  });
+
+  const a11yProps = {
+    "aria-invalid": error ? (true as const) : undefined,
+    "aria-describedby": describedBy,
+  };
+
   const commonProps = {
-    id: field.name,
+    id: inputId,
     disabled,
     className: inputClass,
     placeholder: field.placeholder,
-    maxLength: field.maxLength,
     onBlur,
+    "aria-label": ariaLabel,
+    ...a11yProps,
+  };
+
+  // Group controls are named by PlainSection's label span, or by ariaLabel where there's no visible label.
+  const groupProps = {
+    id: inputId,
+    tabIndex: -1, // focusable programmatically so focus-first-error can land on the group
+    "aria-label": ariaLabel,
+    "aria-labelledby": ariaLabel ? undefined : labelId,
+    ...a11yProps,
   };
 
   const wrap = (input: React.ReactNode) => (
@@ -52,7 +90,16 @@ export default function FieldInput({ field, value, onChange, onBlur, error, disa
         )}
         {input}
       </div>
-      {error && <p className="mt-1 text-xs text-rose-600">{error}</p>}
+      {error && (
+        <p id={errorId} className="mt-1 text-xs text-danger-strong">
+          {error}
+        </p>
+      )}
+      {helpText && (
+        <p id={helpId} className="mt-1 text-xs text-ink-faint">
+          {helpText}
+        </p>
+      )}
     </div>
   );
 
@@ -82,7 +129,9 @@ export default function FieldInput({ field, value, onChange, onBlur, error, disa
             ))}
           </select>
           <input
-            id={field.name}
+            id={inputId}
+            aria-label={ariaLabel}
+            {...a11yProps}
             type="tel"
             inputMode="numeric"
             autoComplete="tel-national"
@@ -107,6 +156,7 @@ export default function FieldInput({ field, value, onChange, onBlur, error, disa
       return wrap(
         <textarea
           {...commonProps}
+          maxLength={field.maxLength}
           rows={compact ? 2 : 3}
           value={value ?? ""}
           onChange={(e) => onChange(e.target.value)}
@@ -189,13 +239,14 @@ export default function FieldInput({ field, value, onChange, onBlur, error, disa
         if (selected.includes(opt)) onChange(selected.filter((v) => v !== opt));
         else onChange([...selected, opt]);
       }
-      return (
-        <div className="flex flex-wrap gap-2">
+      return wrap(
+        <div role="group" className="flex flex-wrap gap-2" {...groupProps}>
           {field.options?.map((opt) => (
             <button
               type="button"
               key={opt}
               disabled={disabled}
+              aria-pressed={selected.includes(opt)}
               onClick={() => toggle(opt)}
               className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
                 selected.includes(opt)
@@ -211,13 +262,14 @@ export default function FieldInput({ field, value, onChange, onBlur, error, disa
     }
 
     case "radio":
-      return (
-        <div className="flex flex-wrap gap-4 pt-1">
-          {field.options?.map((opt) => (
+      return wrap(
+        <div role="radiogroup" className="flex flex-wrap gap-4 pt-1" {...groupProps}>
+          {field.options?.map((opt, i) => (
             <label key={opt} className="flex items-center gap-1.5 text-sm text-ink-soft">
               <input
+                id={`${inputId}-${i}`}
                 type="radio"
-                name={field.name}
+                name={inputId}
                 disabled={disabled}
                 checked={value === opt}
                 onChange={() => onChange(opt)}
@@ -267,6 +319,7 @@ export default function FieldInput({ field, value, onChange, onBlur, error, disa
         <input
           {...commonProps}
           type="text"
+          maxLength={field.maxLength}
           // Supplementary hint only; real validation is the onBlur check producing `error`.
           pattern={field.validation?.pattern?.source}
           value={value ?? ""}
