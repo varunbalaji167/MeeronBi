@@ -369,67 +369,102 @@ sudo chown -R deploy:deploy /var/www/meeronbi
 
 ### 2. Give that user its own read-only GitHub deploy key
 
+Use `sudo -iu deploy` — a **login** shell — rather than `sudo -u deploy`.
+Plain `sudo -u` does not reliably reset `HOME`, so `ssh` and `pm2` would
+look in `/root/.ssh` and `/root/.pm2` while running as `deploy`, failing
+with a permission error that points nowhere useful.
+
 ```bash
-sudo -u deploy ssh-keygen -t ed25519 -C "meeronbi-deploy-user" \
-  -f /home/deploy/.ssh/github_deploy -N ""
-sudo -u deploy cat /home/deploy/.ssh/github_deploy.pub
+sudo -iu deploy          # become deploy; stay here through step 3
+```
+
+Everything in this block runs **as deploy**:
+
+```bash
+ssh-keygen -t ed25519 -C "meeronbi-deploy-user" -f ~/.ssh/github_deploy -N ""
+cat ~/.ssh/github_deploy.pub
 ```
 
 Add that public key on GitHub: repo → **Settings → Deploy keys → Add deploy
 key** → paste → **leave "Allow write access" unchecked.** This is a second,
 separately revocable key; root's §3 key can be removed afterwards.
 
+Then, still as deploy:
+
 ```bash
-sudo -u deploy tee -a /home/deploy/.ssh/config > /dev/null << 'EOF'
+cat >> ~/.ssh/config << 'EOF'
 
 Host github.com
   IdentityFile ~/.ssh/github_deploy
   IdentitiesOnly yes
 EOF
-sudo -u deploy chmod 600 /home/deploy/.ssh/config
+chmod 600 ~/.ssh/config
 
-# Must print "Hi ...! You've successfully authenticated" before continuing.
-sudo -u deploy ssh -T git@github.com
+# Must print "Hi varunbalaji167/MeeronBi! You've successfully authenticated"
+# before continuing. Anything else means step 3's clone will fail.
+ssh -T git@github.com
 ```
 
 ### 3. Build the new layout alongside the old one
 
-Nothing here disturbs the running app — it only adds directories.
+Still **as deploy**. Nothing here disturbs the running app — it only adds
+directories.
 
 ```bash
 cd /var/www/meeronbi
-sudo -u deploy mkdir -p shared/logs releases
-sudo -u deploy cp .env shared/.env
-sudo -u deploy chmod 600 shared/.env
-sudo -u deploy git clone --bare git@github.com:varunbalaji167/MeeronBi.git repo
+mkdir -p shared/logs releases
+cp .env shared/.env
+chmod 600 shared/.env
+git clone --bare git@github.com:varunbalaji167/MeeronBi.git repo
+
+exit                     # back to your own sudo-capable user
 ```
 
 ### 4. Retire root's pm2, hand over to deploy's
+
+This is where the app goes down. As your own sudo-capable user:
 
 ```bash
 # Root's daemon: stop serving and stop coming back on reboot.
 sudo pm2 delete meeronbi || true
 sudo pm2 save --force
 sudo pm2 unstartup systemd || true
+```
 
-# Deploy's daemon: register its own boot hook (run the line it prints).
-sudo -u deploy pm2 startup
+Then register deploy's own boot hook. `pm2 startup` prints a
+`sudo env PATH=... pm2 startup systemd -u deploy --hp /home/deploy` line —
+copy and run exactly what it outputs:
+
+```bash
+sudo -iu deploy pm2 startup
 ```
 
 ### 5. First release through the new path
 
 ```bash
-sudo -u deploy git -C /var/www/meeronbi/repo show main:scripts/deploy.sh > /tmp/deploy.sh
-sudo -u deploy bash /tmp/deploy.sh "$(sudo -u deploy git -C /var/www/meeronbi/repo rev-parse main)"
-sudo -u deploy pm2 save
+sudo -iu deploy          # login shell again, for the same HOME reason
 ```
+
+As deploy:
+
+```bash
+cd /var/www/meeronbi
+git -C repo show main:scripts/deploy.sh > ~/deploy-bootstrap.sh
+bash ~/deploy-bootstrap.sh "$(git -C repo rev-parse main)"
+pm2 save
+exit
+```
+
+The bootstrap copy lives in `~` rather than `/tmp` so it is owned by, and
+readable by, the user actually running it. Every later deploy pipes the
+script over SSH instead, so this file is needed only this once.
 
 **Verify all four before continuing:**
 
 ```bash
 curl http://localhost:3000/api/health          # "status":"ok","db":"ok"
 readlink /var/www/meeronbi/current             # points into releases/
-sudo -u deploy pm2 list                        # meeronbi online
+sudo -iu deploy pm2 list                       # meeronbi online
 sudo pm2 list                                  # root's list: no meeronbi
 ```
 
