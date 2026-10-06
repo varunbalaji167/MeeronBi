@@ -1,70 +1,99 @@
-# Testing strategy
+# Testing and CI
 
-```bash
-npm install
-npm test            # single run
-npm run test:watch  # re-runs on file change, for active development
-```
+## Running locally
 
-The suite also runs on every push and pull request via GitHub Actions
-(`.github/workflows/ci.yml`), alongside a lint pass and a full-project
-`tsc --noEmit` typecheck. The typecheck catches a class of bugs the unit
-tests deliberately don't reach — a wrong Prisma field name, a mismatched
-prop type — so the two are complementary rather than redundant.
-
-## The three CI gates
-
-The unit suite is one of three independent gates, each catching a class of
-failure the others structurally cannot:
-
-| Job | Catches |
+| Command | Does |
 |---|---|
-| `verify` | Logic bugs, type errors, lint regressions. Seconds, no services. |
-| `app` | **Does this commit break the app at all?** Applies every migration to an empty MySQL, builds the real production bundle, boots it, and probes it. |
-| `security` | Committed secrets (gitleaks, full history), insecure patterns (Semgrep), and vulnerable production dependencies (`scripts/audit-gate.mjs`). |
+| `npm test` | Unit suite, single run |
+| `npm run test:watch` | Unit suite, re-runs on change |
+| `npm run verify` | lint + typecheck + unit suite — mirrors CI's `verify` job |
+| `npm run security` | gitleaks + Semgrep + dependency audit gate |
+| `npm run audit:gate` | Production dependency audit only |
+| `npm run smoke <url>` | Probe a running instance |
 
-The `app` job exists because lint, typecheck and unit tests together still
-cannot tell you whether the app *runs*. A broken `next.config.mjs`, a
-migration that only ever worked incrementally on one laptop, a Server
-Component importing something that can't be bundled, a dropped security
-header — all of them pass `verify` and fail in production. That job is the
-only place the real build, the real migrations and the real server meet.
+`npm run verify && npm run security` before pushing reproduces everything CI
+checks except the build-and-boot gate.
 
-### The smoke test
+## CI pipeline
 
-`scripts/smoke.sh` probes a *running* instance and is the same script CI
-and the deploy both use. Beyond liveness, it asserts the things that are
-silently catastrophic rather than loudly broken:
+`.github/workflows/ci.yml` runs three jobs in parallel on every push and pull
+request. A green run on `main` triggers deployment (`docs/DEPLOYMENT.md`).
 
-- `/api/health` answers `ok` **and its timestamp changes between calls** —
-  a prerendered health check would report `ok` against a dead database and
-  would also blind the deploy's rollback gate.
-- Every protected route still refuses an unauthenticated visitor: `/admin`,
-  `/patient` and `/researcher` redirect, and the API routes return 401. A
-  200 here means a guard or middleware stopped being applied — the single
-  worst regression this app can ship, and completely invisible to the unit
-  suite.
-- The five security headers from `next.config.mjs` are present and
-  `X-Powered-By` is absent.
-- With `--with-login` (CI only, never production), a real NextAuth
-  credentials sign-in issues a session cookie and reaches `/admin`, which
-  exercises bcrypt, the user table and the session callback end to end.
+| Job | Verifies | Typical |
+|---|---|---|
+| `verify` | Lint, full-project `tsc --noEmit`, unit suite | ~2 min |
+| `app` | Migrations apply to an empty MySQL, production build succeeds, app boots and answers correctly | ~3 min |
+| `security` | No committed secrets, no flagged code patterns, no unaccepted dependency advisories | ~3 min |
 
-Run it against a local dev server with `npm run smoke http://localhost:3000`.
+A fourth job, `ci-passed`, aggregates the three into one status so branch
+protection (when available) requires a single check.
 
-### Running the security scans locally
+### `verify`
 
-```bash
-npm run security      # gitleaks + Semgrep + the dependency audit gate
-npm run audit:gate    # just the production dependency gate
-```
+Lint and typecheck cover ground the unit suite deliberately does not: a wrong
+Prisma field name or a mismatched prop type is caught by `tsc`, not by tests.
 
-`scripts/audit-gate.mjs` blocks on any high/critical advisory in the
-**production** dependency tree that is not explicitly accepted in
-`.github/audit-allowlist.json`. Every acceptance needs a reason specific to
-this app and an expiry date, so an ignored advisory comes back as a CI
-failure instead of quietly becoming permanent. devDependency advisories are
-reported but never block, since they don't reach the deployed app.
+### `app`
+
+The gate that answers *does this commit break the app*. Lint, typecheck and
+unit tests together cannot tell you whether it runs — a broken
+`next.config.mjs`, a migration that only ever ran incrementally on one
+machine, a Server Component importing something unbundlable, or a dropped
+security header all pass `verify` and fail in production.
+
+Against a throwaway MySQL 8.4 service container it:
+
+1. Applies every migration from an empty database, then checks `schema.prisma`
+   against `prisma/migrations/` for drift.
+2. Runs the real production build.
+3. Seeds, starts the built app, and runs `scripts/smoke.sh --with-login`.
+
+On failure it prints the application log, so a 500 in a smoke assertion comes
+with the stack trace that caused it.
+
+### Smoke test
+
+`scripts/smoke.sh` probes a running instance. CI and the deploy health gate
+use the same script, so what passes in CI is what is checked in production.
+
+21 assertions across four groups:
+
+- **Liveness** — `/api/health` reports `ok` with a reachable database, and its
+  timestamp changes between calls. A prerendered health check would report
+  `ok` against a dead database and would also blind the deploy's rollback gate.
+- **Public surfaces** — `/login`, `/public/trends`, `/researcher-access` and
+  `/api/public/trends` render; unknown routes 404.
+- **Auth boundary** — `/admin`, `/patient` and `/researcher` redirect an
+  unauthenticated visitor; protected API routes return 401. A 200 here means a
+  guard or middleware stopped being applied, which the unit suite cannot see.
+- **Security headers** — the five headers from `next.config.mjs` are present
+  and `X-Powered-By` is absent.
+
+`--with-login` adds a real NextAuth credentials sign-in, exercising bcrypt,
+the user table and the session callback end to end. CI only — against
+production it would be a real login attempt with real credentials, so the
+deploy's own smoke run omits it.
+
+### `security`
+
+| Check | Tool | Blocks on |
+|---|---|---|
+| Committed secrets | gitleaks, full git history | Any finding |
+| Code patterns | Semgrep CE, OSS rulesets | ERROR severity |
+| Dependencies | `scripts/audit-gate.mjs` | Unaccepted high/critical in the **production** tree |
+
+Semgrep stands in for CodeQL, which requires paid GitHub Advanced Security on
+private repositories.
+
+`audit-gate.mjs` blocks on any high or critical advisory in the production
+dependency tree that is not explicitly accepted in
+`.github/audit-allowlist.json`. Each acceptance carries a reason specific to
+this app and an **expiry date**, so a deferred advisory returns as a CI
+failure rather than becoming permanent. devDependency advisories are reported
+but never block — they do not reach the deployed app.
+
+Dependabot (`.github/dependabot.yml`) opens weekly update PRs for npm and
+GitHub Actions; each one runs this same pipeline.
 
 ## Scope
 
