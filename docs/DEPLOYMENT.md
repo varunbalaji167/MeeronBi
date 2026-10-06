@@ -346,35 +346,106 @@ Each release is built in full while the previous one keeps serving. Only a
 release that builds gets the `current` symlink; only a release that then
 passes its health check and smoke test keeps it.
 
-Run this once, on the server, from the existing deployment:
+Two things to know before starting, both of which bite silently otherwise:
+
+- **pm2 is per-user.** The existing app runs under *root's* pm2 daemon. The
+  new one runs under *deploy's*. Both will try to bind `:3000` unless root's
+  is explicitly retired, so step 4 below is not optional.
+- **`deploy.sh` runs `git fetch` as the deploy user**, so the GitHub deploy
+  key has to belong to that user. The §3 key lives in `/root/.ssh` and is
+  not reachable from `deploy`.
+
+Expect **three to five minutes of downtime** while the first release builds.
+Pick a quiet time. Everything is ordered so that the old deployment stays
+intact and bootable until the new one is proven.
+
+### 1. Create the deploy user
+
+```bash
+sudo adduser --disabled-password --gecos "" deploy
+sudo install -d -m 700 -o deploy -g deploy /home/deploy/.ssh
+sudo chown -R deploy:deploy /var/www/meeronbi
+```
+
+### 2. Give that user its own read-only GitHub deploy key
+
+```bash
+sudo -u deploy ssh-keygen -t ed25519 -C "meeronbi-deploy-user" \
+  -f /home/deploy/.ssh/github_deploy -N ""
+sudo -u deploy cat /home/deploy/.ssh/github_deploy.pub
+```
+
+Add that public key on GitHub: repo → **Settings → Deploy keys → Add deploy
+key** → paste → **leave "Allow write access" unchecked.** This is a second,
+separately revocable key; root's §3 key can be removed afterwards.
+
+```bash
+sudo -u deploy tee -a /home/deploy/.ssh/config > /dev/null << 'EOF'
+
+Host github.com
+  IdentityFile ~/.ssh/github_deploy
+  IdentitiesOnly yes
+EOF
+sudo -u deploy chmod 600 /home/deploy/.ssh/config
+
+# Must print "Hi ...! You've successfully authenticated" before continuing.
+sudo -u deploy ssh -T git@github.com
+```
+
+### 3. Build the new layout alongside the old one
+
+Nothing here disturbs the running app — it only adds directories.
 
 ```bash
 cd /var/www/meeronbi
-
-# Keep the existing, working .env — this is the one file that must survive.
-mkdir -p shared/logs releases
-cp .env shared/.env
-chmod 600 shared/.env
-
-# A bare mirror reusing the §3 deploy key. Nothing else needs repo access.
-git clone --bare git@github.com:<owner>/<repo>.git repo
-
-# Clear the old in-place checkout, keeping shared/, releases/ and repo/.
-find . -maxdepth 1 -mindepth 1 \
-  ! -name shared ! -name releases ! -name repo -exec rm -rf {} +
-
-# First release through the new path. pm2 picks up ecosystem.config.cjs,
-# so the old `pm2 start npm --name meeronbi -- start` process is replaced.
-pm2 delete meeronbi || true
-git -C repo show main:scripts/deploy.sh > /tmp/deploy.sh
-bash /tmp/deploy.sh "$(git -C repo rev-parse main)"
-
-pm2 save
+sudo -u deploy mkdir -p shared/logs releases
+sudo -u deploy cp .env shared/.env
+sudo -u deploy chmod 600 shared/.env
+sudo -u deploy git clone --bare git@github.com:varunbalaji167/MeeronBi.git repo
 ```
 
-Verify before moving on: `curl http://localhost:3000/api/health` returns
-`"status":"ok"`, `readlink /var/www/meeronbi/current` points into
-`releases/`, and `pm2 list` shows `meeronbi` online.
+### 4. Retire root's pm2, hand over to deploy's
+
+```bash
+# Root's daemon: stop serving and stop coming back on reboot.
+sudo pm2 delete meeronbi || true
+sudo pm2 save --force
+sudo pm2 unstartup systemd || true
+
+# Deploy's daemon: register its own boot hook (run the line it prints).
+sudo -u deploy pm2 startup
+```
+
+### 5. First release through the new path
+
+```bash
+sudo -u deploy git -C /var/www/meeronbi/repo show main:scripts/deploy.sh > /tmp/deploy.sh
+sudo -u deploy bash /tmp/deploy.sh "$(sudo -u deploy git -C /var/www/meeronbi/repo rev-parse main)"
+sudo -u deploy pm2 save
+```
+
+**Verify all four before continuing:**
+
+```bash
+curl http://localhost:3000/api/health          # "status":"ok","db":"ok"
+readlink /var/www/meeronbi/current             # points into releases/
+sudo -u deploy pm2 list                        # meeronbi online
+sudo pm2 list                                  # root's list: no meeronbi
+```
+
+If the build failed, the old deployment is still intact — recover with
+`sudo pm2 start npm --name meeronbi -- start` from `/var/www/meeronbi` and
+investigate before retrying.
+
+### 6. Only now, remove the old in-place checkout
+
+```bash
+cd /var/www/meeronbi
+sudo find . -maxdepth 1 -mindepth 1 \
+  ! -name shared ! -name releases ! -name repo ! -name current \
+  -exec rm -rf {} +
+curl http://localhost:3000/api/health          # still ok
+```
 
 **Migrations are not rolled back.** `prisma migrate deploy` runs before the
 symlink flip and Prisma has no down-migrations, so a rolled-back release
@@ -392,23 +463,39 @@ server never holds a copy of the deploy script that can drift.
 
 ### Server-side prerequisites
 
-Create a dedicated deploy user rather than handing CI your root key:
+§12 already created the `deploy` user, gave it its own GitHub deploy key,
+and moved pm2 under it. What remains is letting GitHub Actions log in as
+that user.
 
-```bash
-sudo adduser --disabled-password --gecos "" deploy
-sudo mkdir -p /home/deploy/.ssh && sudo chmod 700 /home/deploy/.ssh
-sudo chown -R deploy:deploy /home/deploy/.ssh /var/www/meeronbi
-
-# pm2 and the release directory must be usable as this user.
-sudo -u deploy pm2 startup   # run the systemctl line it prints
-```
+Note these are **two different keys with two different jobs**: §12's
+`github_deploy` key lets the *server* pull from GitHub, while the key below
+lets *GitHub Actions* SSH into the server. Neither can substitute for the
+other.
 
 Generate a key pair **for CI specifically** (on your laptop, not the
 server), so it can be revoked without affecting your own access:
 
 ```bash
+# On your laptop:
 ssh-keygen -t ed25519 -C "meeronbi-github-actions" -f ~/.ssh/meeronbi_ci
-ssh-copy-id -i ~/.ssh/meeronbi_ci.pub deploy@<server-ip>
+cat ~/.ssh/meeronbi_ci.pub
+```
+
+`ssh-copy-id` will not work here — `deploy` was created with
+`--disabled-password`, so there is no password for it to authenticate with.
+Install the key through root instead:
+
+```bash
+# On the server, as a sudoer:
+sudo -u deploy tee -a /home/deploy/.ssh/authorized_keys <<< "<the public key line>"
+sudo -u deploy chmod 600 /home/deploy/.ssh/authorized_keys
+```
+
+Confirm from your laptop before going further — this exact command is what
+the workflow runs:
+
+```bash
+ssh -i ~/.ssh/meeronbi_ci -o BatchMode=yes deploy@<server-ip> "pm2 list"
 ```
 
 ### Repository secrets
