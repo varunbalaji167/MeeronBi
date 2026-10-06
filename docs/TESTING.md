@@ -12,6 +12,60 @@ The suite also runs on every push and pull request via GitHub Actions
 tests deliberately don't reach — a wrong Prisma field name, a mismatched
 prop type — so the two are complementary rather than redundant.
 
+## The three CI gates
+
+The unit suite is one of three independent gates, each catching a class of
+failure the others structurally cannot:
+
+| Job | Catches |
+|---|---|
+| `verify` | Logic bugs, type errors, lint regressions. Seconds, no services. |
+| `app` | **Does this commit break the app at all?** Applies every migration to an empty MySQL, builds the real production bundle, boots it, and probes it. |
+| `security` | Committed secrets (gitleaks, full history), insecure patterns (Semgrep), and vulnerable production dependencies (`scripts/audit-gate.mjs`). |
+
+The `app` job exists because lint, typecheck and unit tests together still
+cannot tell you whether the app *runs*. A broken `next.config.mjs`, a
+migration that only ever worked incrementally on one laptop, a Server
+Component importing something that can't be bundled, a dropped security
+header — all of them pass `verify` and fail in production. That job is the
+only place the real build, the real migrations and the real server meet.
+
+### The smoke test
+
+`scripts/smoke.sh` probes a *running* instance and is the same script CI
+and the deploy both use. Beyond liveness, it asserts the things that are
+silently catastrophic rather than loudly broken:
+
+- `/api/health` answers `ok` **and its timestamp changes between calls** —
+  a prerendered health check would report `ok` against a dead database and
+  would also blind the deploy's rollback gate.
+- Every protected route still refuses an unauthenticated visitor: `/admin`,
+  `/patient` and `/researcher` redirect, and the API routes return 401. A
+  200 here means a guard or middleware stopped being applied — the single
+  worst regression this app can ship, and completely invisible to the unit
+  suite.
+- The five security headers from `next.config.mjs` are present and
+  `X-Powered-By` is absent.
+- With `--with-login` (CI only, never production), a real NextAuth
+  credentials sign-in issues a session cookie and reaches `/admin`, which
+  exercises bcrypt, the user table and the session callback end to end.
+
+Run it against a local dev server with `npm run smoke http://localhost:3000`.
+
+### Running the security scans locally
+
+```bash
+npm run security      # gitleaks + Semgrep + the dependency audit gate
+npm run audit:gate    # just the production dependency gate
+```
+
+`scripts/audit-gate.mjs` blocks on any high/critical advisory in the
+**production** dependency tree that is not explicitly accepted in
+`.github/audit-allowlist.json`. Every acceptance needs a reason specific to
+this app and an expiry date, so an ignored advisory comes back as a CI
+failure instead of quietly becoming permanent. devDependency advisories are
+reported but never block, since they don't reach the deployed app.
+
 ## Scope
 
 Tests are written with Vitest and colocated next to the file they cover
@@ -53,6 +107,12 @@ container, so they are unit-tested alongside `domain/`:
 - Facility provisioning and patient facility-scoping
   (`patientScope.test.ts`), which encode the tenant boundary.
 
+**`prisma/cs-register/` — the CS-register import mapping.** Pure, like
+`domain/`: every rule turning the hospital register's free-typed columns
+into tab values, plus whole-file checks that the committed register maps
+only to values the forms accept and reproduces the clinician's own Robson
+group on every row.
+
 ## Out of scope
 
 - **Library internals** (Prisma, NextAuth, Next.js, recharts). They have
@@ -63,6 +123,11 @@ container, so they are unit-tested alongside `domain/`:
   that would slow the suite from "runs in seconds with no config" to
   "needs infrastructure". The logic worth asserting has deliberately been
   pushed down into `domain/` and the pure `server/` modules above instead.
+  Note that CI's `app` job *does* exercise these against a real MySQL, but
+  black-box through `scripts/smoke.sh` — "does this route still answer
+  correctly", not "is this repository function correct for every input".
+  That boundary is deliberate: the smoke test is a breakage detector, not a
+  substitute for pushing logic down into a testable layer.
 - **React components.** Component testing needs jsdom plus Testing Library,
   a meaningfully larger setup investment. The components are thin enough
   that the logic worth protecting already lives in the tested layers.

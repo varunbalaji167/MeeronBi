@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 # A new commit on the same branch/PR cancels whatever's still running for
 # it, instead of letting a superseded run keep burning minutes.
@@ -11,16 +12,29 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# Least privilege by default. No job here writes to the repo; the deploy
+# workflow requests what it needs separately.
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "20"
+
 jobs:
+  # ---------------------------------------------------------------------
+  # Static checks. Fast, no services — this is the job that should fail
+  # first and most often.
+  # ---------------------------------------------------------------------
   verify:
-    name: Lint, typecheck, and test
+    name: Lint, typecheck, and unit tests
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     env:
       # No real database is used anywhere in this job — `prisma generate`
-      # only reads schema.prisma (it never connects), and the domain/ test
-      # suite is pure logic with no Prisma import chain at all (see
-      # docs/TESTING.md). These exist purely so Prisma's own env validation
-      # doesn't complain about a missing variable at generate-time.
+      # only reads schema.prisma (it never connects), and the unit suite is
+      # pure logic with no live Prisma calls (see docs/TESTING.md). These
+      # exist purely so Prisma's own env validation doesn't complain about a
+      # missing variable at generate-time.
       DATABASE_URL: "mysql://ci:ci@localhost:3306/ci_placeholder"
       NEXTAUTH_SECRET: "ci-placeholder-secret-not-used-for-anything-real"
       NEXTAUTH_URL: "http://localhost:3000"
@@ -29,7 +43,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
       - run: npm ci
@@ -48,5 +62,212 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Unit tests (domain/ — see docs/TESTING.md for scope)
+      - name: Unit tests (see docs/TESTING.md for scope)
         run: npm test
+
+  # ---------------------------------------------------------------------
+  # Supply chain and secrets. Independent of the build so a dependency
+  # advisory and a broken build are never confused for one another.
+  # ---------------------------------------------------------------------
+  security:
+    name: Secrets, SAST, and dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      # Full history: a secret committed once and "removed" later is still in
+      # the repo and still needs rotating, so the whole history is in scope.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Scan git history for committed secrets (gitleaks)
+        env:
+          GITLEAKS_VERSION: 8.21.2
+        run: |
+          curl -fsSL -o /tmp/gitleaks.tar.gz \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
+          /tmp/gitleaks detect --source . --config .gitleaks.toml --redact --no-banner --verbose
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Semgrep Community Edition with the free registry rulesets. Used in
+      # place of CodeQL, which needs paid GitHub Advanced Security on a
+      # private repository.
+      - name: Install Semgrep
+        run: pip install --quiet "semgrep>=1.179,<2"
+
+      - name: Static analysis (Semgrep)
+        run: |
+          semgrep \
+            --config p/javascript \
+            --config p/typescript \
+            --config p/nextjs \
+            --config p/secrets \
+            --config p/sql-injection \
+            --exclude node_modules \
+            --exclude .next \
+            --metrics=off \
+            --error
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      # Blocks on any high/critical advisory in the production dependency
+      # tree that is not explicitly accepted, with an expiry date, in
+      # .github/audit-allowlist.json. No `npm ci` needed — npm audit reads
+      # the lockfile.
+      - name: Dependency audit gate (production tree)
+        run: node scripts/audit-gate.mjs
+
+      # devDependency advisories never reach the deployed app, so they are
+      # reported for awareness rather than used as a gate.
+      - name: Dependency audit report (full tree, informational)
+        if: always()
+        run: node scripts/audit-gate.mjs --report
+
+  # ---------------------------------------------------------------------
+  # The gate that actually answers "does this commit break the app".
+  # Builds the real production bundle, applies every migration from an
+  # empty database, boots the result and probes it.
+  # ---------------------------------------------------------------------
+  app:
+    name: Migrate, build, boot, and smoke-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: ci_root_password
+          MYSQL_DATABASE: meeronbi_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -pci_root_password --silent"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    env:
+      DATABASE_URL: "mysql://root:ci_root_password@127.0.0.1:3306/meeronbi_ci"
+      SHADOW_DATABASE_URL: "mysql://root:ci_root_password@127.0.0.1:3306/meeronbi_ci_shadow"
+      NEXTAUTH_URL: "http://localhost:3000"
+      NEXT_PUBLIC_APP_ORIGIN: "localhost:3000"
+      # Throwaway, scoped to this runner and this run. Never a real secret.
+      NEXTAUTH_SECRET: "ci-only-secret-regenerated-every-run-not-used-in-production"
+      SEED_ADMIN_EMAIL: "ci-admin@example.invalid"
+      SEED_ADMIN_PASSWORD: "CiSmokeAdmin!2345"
+      SEED_SUPER_ADMIN_EMAIL: "ci-super@example.invalid"
+      SEED_SUPER_ADMIN_PASSWORD: "CiSmokeSuper!2345"
+      SEED_DEMO_PATIENT_EMAIL: "ci-patient@example.invalid"
+      SEED_DEMO_PATIENT_PASSWORD: "CiSmokePatient!2345"
+      SENTRY_DSN: ""
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Wait for MySQL
+        run: |
+          for i in $(seq 1 30); do
+            if mysqladmin ping -h 127.0.0.1 -P 3306 -uroot -pci_root_password --silent 2>/dev/null; then
+              echo "MySQL is up"; exit 0
+            fi
+            sleep 2
+          done
+          echo "MySQL never became reachable"; exit 1
+
+      # Applies every migration in order against an empty database. This is
+      # the check that a migration which only ever ran incrementally on a
+      # developer's machine actually works on a fresh one — the failure mode
+      # that otherwise surfaces for the first time on a real deploy.
+      - name: Apply migrations from scratch
+        run: npx prisma migrate deploy
+
+      # Catches schema drift: schema.prisma edited without a matching
+      # migration being generated. `migrate deploy` would succeed and the app
+      # would then fail at runtime against columns that were never created.
+      - name: Check for schema drift
+        run: |
+          mysql -h 127.0.0.1 -P 3306 -uroot -pci_root_password \
+            -e "CREATE DATABASE IF NOT EXISTS meeronbi_ci_shadow;"
+          npx prisma migrate diff \
+            --from-migrations ./prisma/migrations \
+            --to-schema-datamodel ./prisma/schema.prisma \
+            --shadow-database-url "$SHADOW_DATABASE_URL" \
+            --exit-code \
+          || {
+            echo "::error::schema.prisma does not match prisma/migrations — run 'npx prisma migrate dev' and commit the generated migration."
+            exit 1
+          }
+
+      # The gate that was missing: a commit that breaks the production build
+      # used to pass CI and only fail on the server, mid-deploy.
+      - name: Production build
+        run: npm run build
+
+      - name: Seed demo data
+        run: npm run seed
+
+      - name: Boot the built app
+        run: |
+          nohup npm start > /tmp/app.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:3000/api/health > /dev/null 2>&1; then
+              echo "App is serving"; exit 0
+            fi
+            sleep 2
+          done
+          echo "App never became healthy within 120s"; exit 1
+
+      - name: Smoke test
+        env:
+          SMOKE_ADMIN_EMAIL: ${{ env.SEED_ADMIN_EMAIL }}
+          SMOKE_ADMIN_PASSWORD: ${{ env.SEED_ADMIN_PASSWORD }}
+        run: bash scripts/smoke.sh http://localhost:3000 --with-login
+
+      # Without this, a smoke failure shows only "expected 200, got 500" and
+      # the stack trace that explains it is thrown away with the runner.
+      - name: Application log
+        if: always()
+        run: |
+          echo "----- /tmp/app.log -----"
+          cat /tmp/app.log || echo "(no log produced)"
+
+  # ---------------------------------------------------------------------
+  # One status for branch protection to require, so adding a job later
+  # doesn't mean editing the protection rule.
+  # ---------------------------------------------------------------------
+  ci-passed:
+    name: CI passed
+    runs-on: ubuntu-latest
+    needs: [verify, security, app]
+    if: always()
+    steps:
+      - name: Confirm every gate succeeded
+        run: |
+          echo "verify:   ${{ needs.verify.result }}"
+          echo "security: ${{ needs.security.result }}"
+          echo "app:      ${{ needs.app.result }}"
+          if [ "${{ needs.verify.result }}" != "success" ] \
+            || [ "${{ needs.security.result }}" != "success" ] \
+            || [ "${{ needs.app.result }}" != "success" ]; then
+            echo "::error::At least one CI gate did not pass."
+            exit 1
+          fi
+          echo "All gates passed."
