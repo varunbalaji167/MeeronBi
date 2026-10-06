@@ -1,6 +1,8 @@
 import { requireResearcherSession } from "@/server/auth/guards";
 import AnalyticsWorkbench from "@/components/analytics/AnalyticsWorkbenchLoader";
 
+export const metadata = { title: "Analytics" };
+
 export const dynamic = "force-dynamic";
 
 export default async function ResearcherHomePage() {

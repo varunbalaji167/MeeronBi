@@ -1,5 +1,7 @@
 import AnalyticsWorkbench from "@/components/analytics/AnalyticsWorkbenchLoader";
 
+export const metadata = { title: "Analytics" };
+
 export default function AdminAnalyticsPage() {
   return (
     <div>

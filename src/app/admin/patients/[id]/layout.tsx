@@ -7,6 +7,9 @@ import { allTabs } from "@/domain/tabs";
 import type { StageStatus } from "@/components/patient/CareTimeline";
 import { TabFormProvider } from "@/context/TabFormContext";
 
+// Static on purpose: a patient name in the tab title leaks into history, screenshots and shoulder-surfing.
+export const metadata = { title: "Patient record" };
+
 export default async function PatientLayout({
   children,
   params,

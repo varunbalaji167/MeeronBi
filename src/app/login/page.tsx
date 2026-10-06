@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
+import Skeleton from "@/components/ui/Skeleton";
 import Spinner from "@/components/ui/Spinner";
 import ErrorBanner from "@/components/ui/ErrorBanner";
 import CareTimeline from "@/components/patient/CareTimeline";
@@ -365,9 +366,29 @@ function LoginForm() {
   );
 }
 
+function LoginFallback() {
+  return (
+    <main className="grid min-h-screen lg:grid-cols-2" aria-busy="true">
+      <div className="hidden bg-brand-700 lg:block" />
+      <div className="flex flex-col justify-center px-6 py-16 sm:px-12 lg:px-16">
+        <div className="mx-auto w-full max-w-sm">
+          <Skeleton className="h-6 w-56" />
+          <Skeleton className="mt-4 h-9 w-64" />
+          <Skeleton className="mt-2 h-4 w-52" />
+          <div className="mt-8 flex flex-col gap-4">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+          </div>
+        </div>
+      </div>
+    </main>
+  );
+}
+
 export default function LoginPage() {
   return (
-    <Suspense>
+    <Suspense fallback={<LoginFallback />}>
       <LoginForm />
     </Suspense>
   );

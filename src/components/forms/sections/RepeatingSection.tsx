@@ -3,6 +3,7 @@
 import { RepeatingSectionConfig } from "@/domain/tabs";
 import FieldInput from "../FieldInput";
 import { Plus, X } from "lucide-react";
+import Button from "@/components/ui/Button";
 
 interface Props {
   section: RepeatingSectionConfig;
@@ -34,15 +35,16 @@ export default function RepeatingSection({
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-l-2 border-brand-200 pl-3">
           <h3 className="text-sm font-semibold uppercase tracking-wide text-ink-soft">{section.title}</h3>
           {!readOnly && (
-            <button
-              type="button"
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={onAddRow}
-              disabled={atCap}
-              className="btn-secondary !px-3 !py-1 text-xs disabled:cursor-not-allowed disabled:opacity-50"
+              icon={<Plus className="h-3.5 w-3.5" />}
+              disabledReason={atCap ? `Up to ${maxCount} entries` : undefined}
               title={atCap ? `Up to ${maxCount} entries` : undefined}
             >
-              <Plus className="h-3.5 w-3.5" /> {section.addRowLabel ?? "Add"}
-            </button>
+              {section.addRowLabel ?? "Add"}
+            </Button>
           )}
         </div>
         <table className="w-full min-w-[900px] table-auto border-collapse text-sm">
@@ -98,9 +100,9 @@ export default function RepeatingSection({
       <div className="mb-4 flex items-center justify-between border-l-2 border-brand-200 pl-3">
         <h3 className="text-sm font-semibold uppercase tracking-wide text-ink-soft">{section.title}</h3>
         {!readOnly && (
-          <button type="button" onClick={onAddRow} className="btn-secondary !px-3 !py-1 text-xs">
-            <Plus className="h-3.5 w-3.5" /> {section.addRowLabel ?? "Add row"}
-          </button>
+          <Button variant="secondary" size="sm" onClick={onAddRow} icon={<Plus className="h-3.5 w-3.5" />}>
+            {section.addRowLabel ?? "Add row"}
+          </Button>
         )}
       </div>
 

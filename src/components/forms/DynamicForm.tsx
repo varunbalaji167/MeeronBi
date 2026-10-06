@@ -8,6 +8,7 @@ import { fieldIds } from "./fieldIds";
 import PlainSection from "./sections/PlainSection";
 import GridSection from "./sections/GridSection";
 import RepeatingSection from "./sections/RepeatingSection";
+import Button from "../ui/Button";
 import Spinner from "../ui/Spinner";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import { useTabForm } from "@/context/TabFormContext";
@@ -63,6 +64,8 @@ export default function DynamicForm({
     () => ({ ...getFieldLevelErrors(tab, data), ...serverFieldErrors }),
     [tab, data, serverFieldErrors]
   );
+
+  const hasServerFieldErrors = Object.keys(serverFieldErrors).length > 0;
 
   function touch(name: string) {
     setTouched((prev) => (prev.has(name) ? prev : new Set(prev).add(name)));
@@ -123,7 +126,10 @@ export default function DynamicForm({
     els[0]?.focus();
   }
 
-  async function handleSave(nextStatus: Status, opts: { toastMessage?: string | null } = {}) {
+  async function handleSave(
+    nextStatus: Status,
+    opts: { toastMessage?: string | null; silentError?: boolean } = {}
+  ) {
     if (nextStatus === "COMPLETE") {
       const reasons = getIncompleteReasons(tab, data);
       const fieldErrorNames = Object.keys(errors);
@@ -144,6 +150,7 @@ export default function DynamicForm({
       const returnedFieldErrors = await onSave(data, nextStatus);
       setStatus(nextStatus);
       setSavedAt(new Date());
+      // Deliberately clean even with field errors: the tab record persisted; only the denormalized column was refused.
       setDirty(false);
 
       if (returnedFieldErrors && Object.keys(returnedFieldErrors).length > 0) {
@@ -161,11 +168,13 @@ export default function DynamicForm({
           : `${tab.label} saved as draft.`;
       if (message) showToast(message, "success");
     } catch (err) {
-      showToast(
-        friendlyErrorMessage(err, `Failed to save ${tab.label}. Your changes are still on this page — try again.`),
-        "error"
-      );
-      throw new Error("save failed");
+      if (!opts.silentError) {
+        showToast(
+          friendlyErrorMessage(err, `Failed to save ${tab.label}. Your changes are still on this page — try again.`),
+          "error"
+        );
+      }
+      throw err;
     } finally {
       setSaving(null);
     }
@@ -197,7 +206,8 @@ export default function DynamicForm({
       tabKey: tab.key,
       dirty,
       data,
-      saveDraft: () => handleSave("DRAFT", { toastMessage: `${tab.label} auto-saved as draft.` }),
+      saveDraft: () =>
+        handleSave("DRAFT", { toastMessage: `${tab.label} auto-saved as draft.`, silentError: true }),
     });
     return () => setActiveForm(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -228,7 +238,11 @@ export default function DynamicForm({
             </span>
           )}
           {savedAt && !dirty && (
-            <span className="text-xs text-ink-faint">Saved {savedAt.toLocaleTimeString()}</span>
+            hasServerFieldErrors ? (
+              <span className="text-xs font-medium text-rose-600">Saved — one field needs attention</span>
+            ) : (
+              <span className="text-xs text-ink-faint">Saved {savedAt.toLocaleTimeString()}</span>
+            )
           )}
           {dirty && <span className="text-xs font-medium text-gold-600">Unsaved changes</span>}
           {headerActions}
@@ -276,24 +290,34 @@ export default function DynamicForm({
         // left-0/right-0 (not inset-x-0) lets lg:left-60 clear the sidebar without overlapping it.
         <div className="fixed bottom-0 left-0 right-0 lg:left-60 flex justify-center border-t border-line bg-white/95 py-3 backdrop-blur">
           <div className="flex w-full max-w-5xl flex-wrap items-center gap-3 px-4 sm:px-6 lg:px-8">
-            <button
-              className="btn-primary"
-              disabled={saving !== null || deleting || !dirty}
+            <Button
+              variant="primary"
+              loading={saving === "DRAFT"}
+              disabledReason={
+                saving !== null || deleting ? "Please wait" : !dirty ? "No changes to save" : undefined
+              }
               onClick={() => handleSave("DRAFT")}
+              icon={<Save className="h-4 w-4" />}
               title={dirty ? "Save your progress without requiring every field to be filled in" : "No changes to save"}
             >
-              {saving === "DRAFT" ? <Spinner className="h-4 w-4" light /> : <Save className="h-4 w-4" />}
               {saving === "DRAFT" ? "Saving…" : "Save as Draft"}
-            </button>
-            <button
-              className="btn-secondary"
-              disabled={saving !== null || deleting || (status === "COMPLETE" && !dirty)}
+            </Button>
+            <Button
+              variant="secondary"
+              loading={saving === "COMPLETE"}
+              disabledReason={
+                saving !== null || deleting
+                  ? "Please wait"
+                  : status === "COMPLETE" && !dirty
+                    ? "Already marked complete"
+                    : undefined
+              }
               onClick={() => handleSave("COMPLETE")}
+              icon={<CheckCircle2 className="h-4 w-4" />}
               title={status === "COMPLETE" && !dirty ? "Already marked complete" : undefined}
             >
-              {saving === "COMPLETE" ? <Spinner className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
               {saving === "COMPLETE" ? "Saving…" : "Mark Complete"}
-            </button>
+            </Button>
             {onDelete && (
               <button
                 className="btn-danger ml-auto"

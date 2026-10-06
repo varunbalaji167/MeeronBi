@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
 import { ApiError, toApiError, friendlyErrorMessage } from "@/lib/apiClient";
+import Skeleton from "@/components/ui/Skeleton";
 import Spinner from "@/components/ui/Spinner";
 import ErrorBanner from "@/components/ui/ErrorBanner";
 import { Building2, Plus, Send } from "lucide-react";
@@ -90,7 +91,17 @@ export default function FacilitiesPage() {
     }
   }
 
-  if (authLoading) return null;
+  if (authLoading) {
+    return (
+      <div>
+        <Skeleton className="h-7 w-40" />
+        <div className="panel mt-6 flex flex-col gap-4">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+        </div>
+      </div>
+    );
+  }
 
   if (!isSuperAdmin) {
     return (

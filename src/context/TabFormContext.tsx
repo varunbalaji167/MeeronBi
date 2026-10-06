@@ -2,6 +2,8 @@
 
 import { createContext, useCallback, useContext, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/context/ToastContext";
+import { friendlyErrorMessage } from "@/lib/apiClient";
 
 interface ActiveFormState {
   tabKey: string;
@@ -30,6 +32,7 @@ const TabFormContext = createContext<TabFormContextValue>({
 
 export function TabFormProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const { showToast } = useToast();
   // Ref for synchronous access (navigateWithAutosave); state for reactive consumers.
   const activeRef = useRef<ActiveFormState | null>(null);
   const [activeForm, setActiveFormState] = useState<ActiveFormState | null>(null);
@@ -45,13 +48,19 @@ export function TabFormProvider({ children }: { children: React.ReactNode }) {
       if (active?.dirty) {
         try {
           await active.saveDraft();
-        } catch {
-          // saveDraft shows its own error toast; navigation proceeds regardless.
+        } catch (err) {
+          // Stay put so the user's in-memory edits survive; leaving is an explicit choice.
+          showToast(
+            friendlyErrorMessage(err, "Couldn't save your changes, so you're still on this page."),
+            "error",
+            { action: { label: "Leave anyway", onClick: () => router.push(href) } }
+          );
+          return;
         }
       }
       router.push(href);
     },
-    [router]
+    [router, showToast]
   );
 
   return (

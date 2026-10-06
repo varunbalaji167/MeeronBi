@@ -4,6 +4,7 @@ import { useEffect, useState, Suspense } from "react";
 import { signIn, getProviders } from "next-auth/react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import Skeleton from "@/components/ui/Skeleton";
 import Spinner from "@/components/ui/Spinner";
 import ErrorBanner from "@/components/ui/ErrorBanner";
 import GoogleButton from "@/components/ui/GoogleButton";
@@ -180,7 +181,21 @@ function ResearcherAccessRequestForm() {
 
 export default function ResearcherAccessPage() {
   return (
-    <Suspense>
+    <Suspense
+      fallback={
+        <main className="flex min-h-screen flex-col items-center justify-center bg-paper px-6 py-16">
+          <div className="w-full max-w-md">
+            <Skeleton className="h-7 w-64" />
+            <Skeleton className="mt-3 h-4 w-full" />
+            <div className="panel mt-6 flex flex-col gap-4">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+          </div>
+        </main>
+      }
+    >
       <ResearcherAccessRequestForm />
     </Suspense>
   );
