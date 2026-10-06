@@ -31,7 +31,7 @@ async function main() {
   const password = "QaAdmin123!";
   const passwordHash = await bcrypt.hash(password, 10);
   await prisma.user.create({
-    data: { email, passwordHash, name: "QA Admin", role: "ADMIN", facilityId: facility.id },
+    data: { email, passwordHash, name: "QA Admin", role: "ADMIN", facilityId: facility.id, emailVerifiedAt: new Date() },
   });
 
   console.log(`Created "${facility.name}" (slug: ${slug}) with admin login:

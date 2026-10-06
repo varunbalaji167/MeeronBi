@@ -1,13 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState, Suspense } from "react";
+import { signIn, getProviders } from "next-auth/react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import Spinner from "@/components/ui/Spinner";
 import ErrorBanner from "@/components/ui/ErrorBanner";
+import GoogleButton from "@/components/ui/GoogleButton";
 import { toApiError, friendlyErrorMessage } from "@/lib/apiClient";
 import { CheckCircle2, GraduationCap, Mail, Lock, Building2 } from "lucide-react";
 
-export default function ResearcherAccessRequestPage() {
+const GOOGLE_START_ERROR_MESSAGE: Record<string, string> = {
+  "google-link-invalid": "That Google sign-up link isn't valid or has expired. Please try again below.",
+};
+
+function ResearcherAccessRequestForm() {
+  const params = useSearchParams();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -16,6 +24,25 @@ export default function ResearcherAccessRequestPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [googleEnabled, setGoogleEnabled] = useState(false);
+  const [googleSubmitting, setGoogleSubmitting] = useState(false);
+
+  useEffect(() => {
+    getProviders().then((providers) => setGoogleEnabled(!!providers?.["google-signup"]));
+  }, []);
+
+  useEffect(() => {
+    const startError = params.get("error");
+    if (startError && GOOGLE_START_ERROR_MESSAGE[startError]) {
+      setError(GOOGLE_START_ERROR_MESSAGE[startError]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function handleGoogleSignUp() {
+    setGoogleSubmitting(true);
+    await signIn("google-signup");
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -41,10 +68,11 @@ export default function ResearcherAccessRequestPage() {
       <main className="flex min-h-screen flex-col items-center justify-center bg-paper px-6 py-16">
         <div className="panel max-w-md text-center">
           <CheckCircle2 className="mx-auto h-10 w-10 text-brand-500" />
-          <h1 className="mt-4 font-display text-2xl italic text-ink">Request submitted</h1>
+          <h1 className="mt-4 font-display text-2xl italic text-ink">Check your email</h1>
           <p className="mt-2 text-sm text-ink-soft">
-            The MeeronBi team will review your request. You&apos;ll be able to sign in once it&apos;s approved — trying to
-            sign in before then will tell you it&apos;s still pending, not that your password is wrong.
+            We&apos;ve sent a verification link to your email address. Click it to confirm your request — the
+            MeeronBi team won&apos;t see it until you do. You&apos;ll be able to sign in once it&apos;s reviewed and
+            approved.
           </p>
           <Link href="/login?role=researcher" className="btn-secondary mt-6 inline-flex">
             Back to sign in
@@ -134,7 +162,26 @@ export default function ResearcherAccessRequestPage() {
             {submitting ? "Submitting…" : "Submit Request"}
           </button>
         </form>
+
+        {googleEnabled && (
+          <div className="mt-4 flex flex-col gap-4">
+            <div className="flex items-center gap-3 text-xs text-ink-faint">
+              <div className="h-px flex-1 bg-ink-faint/20" />
+              or
+              <div className="h-px flex-1 bg-ink-faint/20" />
+            </div>
+            <GoogleButton onClick={handleGoogleSignUp} loading={googleSubmitting} label="Sign up with Google instead" />
+          </div>
+        )}
       </div>
     </main>
+  );
+}
+
+export default function ResearcherAccessPage() {
+  return (
+    <Suspense>
+      <ResearcherAccessRequestForm />
+    </Suspense>
   );
 }

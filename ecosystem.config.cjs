@@ -27,5 +27,25 @@ module.exports = {
       out_file: "/var/www/meeronbi/shared/logs/out.log",
       time: true,
     },
+    {
+      name: "meeronbi-email-worker",
+      cwd: "/var/www/meeronbi/current",
+      // tsx is a dependency (not devDependency) specifically so this survives a production
+      // `npm ci` even if one is ever changed to --omit=dev.
+      script: "node_modules/.bin/tsx",
+      args: "scripts/email-worker.ts",
+      instances: 1,
+      exec_mode: "fork",
+      max_memory_restart: "1G",
+      // Generous enough for the SIGTERM drain in scripts/email-worker.ts to finish an in-flight send.
+      kill_timeout: 20000,
+      listen_timeout: 15000,
+      env: {
+        NODE_ENV: "production",
+      },
+      error_file: "/var/www/meeronbi/shared/logs/email-worker-error.log",
+      out_file: "/var/www/meeronbi/shared/logs/email-worker-out.log",
+      time: true,
+    },
   ],
 };

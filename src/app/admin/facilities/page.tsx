@@ -6,15 +6,16 @@ import { useToast } from "@/context/ToastContext";
 import { ApiError, toApiError, friendlyErrorMessage } from "@/lib/apiClient";
 import Spinner from "@/components/ui/Spinner";
 import ErrorBanner from "@/components/ui/ErrorBanner";
-import { Building2, Plus } from "lucide-react";
+import { Building2, Plus, Send } from "lucide-react";
 
 interface Facility {
   id: string;
   name: string;
   slug: string;
+  admin: { id: string; email: string; inviteAccepted: boolean } | null;
 }
 
-const EMPTY_FORM = { name: "", slug: "", stateCode: "", adminName: "", adminEmail: "", adminPassword: "" };
+const EMPTY_FORM = { name: "", slug: "", stateCode: "", adminName: "", adminEmail: "" };
 
 export default function FacilitiesPage() {
   const { isSuperAdmin, isLoading: authLoading } = useAuth();
@@ -25,6 +26,7 @@ export default function FacilitiesPage() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [resendingFor, setResendingFor] = useState<string | null>(null);
 
   function load() {
     if (!isSuperAdmin) return;
@@ -59,7 +61,6 @@ export default function FacilitiesPage() {
           stateCode: form.stateCode || undefined,
           adminName: form.adminName || undefined,
           adminEmail: form.adminEmail,
-          adminPassword: form.adminPassword,
         }),
       });
       if (!res.ok) throw await toApiError(res, "Failed to create facility.");
@@ -72,6 +73,20 @@ export default function FacilitiesPage() {
       setFormError(friendlyErrorMessage(err, "Failed to create facility."));
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function resendInvite(adminId: string) {
+    setResendingFor(adminId);
+    try {
+      const res = await fetch(`/api/facilities/${adminId}/resend-invite`, { method: "POST" });
+      if (!res.ok) throw await toApiError(res, "Failed to resend the invite.");
+      const json = await res.json();
+      showToast(`A fresh invite link was sent to ${json.email}.`, "success");
+    } catch (err) {
+      showToast(friendlyErrorMessage(err, "Failed to resend the invite."), "error");
+    } finally {
+      setResendingFor(null);
     }
   }
 
@@ -149,18 +164,6 @@ export default function FacilitiesPage() {
             />
             {fieldErrors.adminEmail && <p className="mt-1 text-xs text-rose-600">{fieldErrors.adminEmail}</p>}
           </div>
-          <div>
-            <label className="label-text">Admin Password *</label>
-            <input
-              required
-              type="password"
-              className="input-field"
-              value={form.adminPassword}
-              onChange={(e) => updateField("adminPassword", e.target.value)}
-              placeholder="At least 6 characters"
-            />
-            {fieldErrors.adminPassword && <p className="mt-1 text-xs text-rose-600">{fieldErrors.adminPassword}</p>}
-          </div>
         </div>
         {formError && <ErrorBanner>{formError}</ErrorBanner>}
         <button className="btn-primary self-start" disabled={saving}>
@@ -183,8 +186,21 @@ export default function FacilitiesPage() {
           <div className="panel divide-y divide-line !p-0">
             {facilities.map((f) => (
               <div key={f.id} className="flex items-center justify-between px-4 py-3">
-                <span className="font-medium text-ink">{f.name}</span>
-                <span className="text-xs text-ink-faint">{f.slug}</span>
+                <div>
+                  <span className="font-medium text-ink">{f.name}</span>
+                  <span className="ml-2 text-xs text-ink-faint">{f.slug}</span>
+                </div>
+                {f.admin && !f.admin.inviteAccepted && (
+                  <button
+                    className="btn-secondary !py-1 text-xs"
+                    disabled={resendingFor === f.admin.id}
+                    onClick={() => resendInvite(f.admin!.id)}
+                    title={`${f.admin.email} hasn't set a password yet`}
+                  >
+                    {resendingFor === f.admin.id ? <Spinner className="h-3.5 w-3.5" /> : <Send className="h-3.5 w-3.5" />}
+                    Resend invite
+                  </button>
+                )}
               </div>
             ))}
           </div>

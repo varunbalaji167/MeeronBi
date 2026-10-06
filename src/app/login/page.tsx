@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, Suspense } from "react";
-import { signIn, signOut, getSession } from "next-auth/react";
+import { signIn, signOut, getSession, getProviders } from "next-auth/react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
@@ -9,7 +9,56 @@ import { useToast } from "@/context/ToastContext";
 import Spinner from "@/components/ui/Spinner";
 import ErrorBanner from "@/components/ui/ErrorBanner";
 import CareTimeline from "@/components/patient/CareTimeline";
+import GoogleButton from "@/components/ui/GoogleButton";
 import { CheckCircle2, Mail, Lock } from "lucide-react";
+
+// Set just before the full-page redirect to Google, read (and always cleared) on the way back —
+// sessionStorage survives that navigation, component state doesn't.
+const GOOGLE_PENDING_KEY = "mb_google_signin_pending";
+
+/** Returns whether a Google sign-in attempt from this tab is still pending, clearing the marker
+ * either way so it never leaks into an unrelated later visit. */
+function clearGooglePendingMarker(): boolean {
+  try {
+    const wasPending = sessionStorage.getItem(GOOGLE_PENDING_KEY) === "1";
+    sessionStorage.removeItem(GOOGLE_PENDING_KEY);
+    return wasPending;
+  } catch {
+    return false;
+  }
+}
+
+/** Tab-appropriate copy for a Google sign-in rejection — `error` carries the `google-<reason>`
+ * code thrown by the signIn callback in server/auth/authOptions.ts. */
+function googleErrorMessage(error: string, roleHint: keyof typeof copy): React.ReactNode {
+  switch (error) {
+    case "google-email-unverified":
+      return "Your Google account's email isn't verified yet. Verify it with Google, then try again.";
+    case "google-pending":
+      // Email is unique per account, so this fires whenever the chosen Google account already has a
+      // researcher request — on any tab, not just the researcher one.
+      if (roleHint === "researcher") return "Your researcher access request is still pending approval — you'll be notified once it's reviewed.";
+      return "That Google account already has a researcher access request pending approval, so it can't sign in here. Use a different Google account, or your regular email/password login.";
+    case "google-not-approved":
+      if (roleHint === "researcher") return "Your researcher access request was not approved. Contact the MeeronBi team if you have questions.";
+      return "That Google account's researcher access request was not approved, so it can't sign in here. Use a different Google account, or your regular email/password login.";
+    case "google-no-account":
+      if (roleHint === "patient") return "We don't have a login for that Google account — ask your care team to set one up.";
+      if (roleHint === "researcher")
+        return (
+          <>
+            We don&apos;t have a login for that Google account.{" "}
+            <Link href="/researcher-access" className="font-medium underline">
+              Request researcher access
+            </Link>
+            .
+          </>
+        );
+      return "We don't have a login for that Google account — ask your administrator.";
+    default:
+      return "Something went wrong signing in with Google. Please try again.";
+  }
+}
 
 const copy = {
   patient: {
@@ -75,20 +124,51 @@ function LoginForm() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<React.ReactNode>(null);
   const [submitting, setSubmitting] = useState(false);
   // True while checking the just-signed-in role against this tab; blocks the redirect effect below.
   const [checkingRole, setCheckingRole] = useState(false);
+  // NextAuth only reports configured providers at runtime, so the Google button simply doesn't
+  // render when GOOGLE_CLIENT_ID is unset — no separate feature flag needed.
+  const [googleEnabled, setGoogleEnabled] = useState(false);
+  const [googleSubmitting, setGoogleSubmitting] = useState(false);
+
+  useEffect(() => {
+    getProviders().then((providers) => setGoogleEnabled(!!providers?.google));
+  }, []);
+
+  // A Google sign-in failure is a full-page redirect back with ?error=<code> — there's no
+  // client-side result to await like the credentials form gets, so it's read from the URL on mount.
+  useEffect(() => {
+    const errorCode = params.get("error");
+    if (errorCode) setError(googleErrorMessage(errorCode, roleHint));
+    // Doesn't clear the pending marker here — this effect and the one below both run on mount, in
+    // order, so clearing unconditionally would wipe it before a successful return ever reads it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!isAuthenticated || !role || checkingRole) return;
-    // Only toast if this submit just completed the sign-in, not on an already-authenticated landing.
-    if (submitting) showToast("Signed in successfully.", "success");
+    // Google's full-page redirect remounts this component, so `submitting` is always false here —
+    // clearGooglePendingMarker reads the sessionStorage flag set just before that redirect instead.
+    if (submitting || clearGooglePendingMarker()) showToast("Signed in successfully.", "success");
     router.replace(
       role === "ADMIN" || role === "SUPER_ADMIN" ? "/admin" : role === "PATIENT" ? "/patient" : role === "RESEARCHER" ? "/researcher" : "/"
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, role, router, submitting, checkingRole]);
+
+  // No wrong-tab check here, unlike handleSubmit below: Google already tells us exactly who signed
+  // in, so the redirect effect above can send them to their real role's home regardless of tab.
+  async function handleGoogleSignIn() {
+    setGoogleSubmitting(true);
+    try {
+      sessionStorage.setItem(GOOGLE_PENDING_KEY, "1");
+    } catch {
+      // Storage can throw in private browsing — the toast is a nicety, never block sign-in over it.
+    }
+    await signIn("google");
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -228,7 +308,12 @@ function LoginForm() {
               </div>
             </div>
             <div>
-              <label className="label-text">Password</label>
+              <div className="flex items-center justify-between">
+                <label className="label-text">Password</label>
+                <Link href="/forgot-password" className="text-xs font-medium text-brand-600 hover:underline">
+                  Forgot password?
+                </Link>
+              </div>
               <div className="relative">
                 <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" />
                 <input
@@ -248,6 +333,17 @@ function LoginForm() {
             </button>
           </form>
 
+          {googleEnabled && (
+            <div className="mt-4 flex flex-col gap-4">
+              <div className="flex items-center gap-3 text-xs text-ink-faint">
+                <div className="h-px flex-1 bg-ink-faint/20" />
+                or
+                <div className="h-px flex-1 bg-ink-faint/20" />
+              </div>
+              <GoogleButton onClick={handleGoogleSignIn} loading={googleSubmitting} label="Continue with Google" />
+            </div>
+          )}
+
           <p className="mt-6 text-xs text-ink-faint">
             {roleHint === "patient" ? (
               "Don't have a login yet? Ask your hospital's care team to set one up for you."
@@ -260,13 +356,7 @@ function LoginForm() {
                 .
               </>
             ) : (
-              <>
-                Need an account?{" "}
-                <Link href="/researcher-access" className="font-medium text-brand-600 hover:underline">
-                  Request researcher access
-                </Link>
-                .
-              </>
+              "Need an account? Ask MeeronBi team to set one up for you."
             )}
           </p>
         </div>

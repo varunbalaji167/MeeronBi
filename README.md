@@ -72,21 +72,33 @@ verify facility isolation actually works rather than just trusting it.
 
 ## Patient portal login — how it works
 
-Patients don't self-register; staff grant access per patient:
+Patients don't self-register; staff grant access per patient, choosing **per
+patient** between two methods:
 
 1. In the admin patient view (any tab), click **"Manage patient portal login"**
    next to the patient's name.
-2. Enter the patient's email and a temporary password. This calls
-   `POST /api/patients/[id]`, which enforces **exactly one login per patient**
-   — updating their existing account in place if they already have one, and
-   refusing any email already used by someone else
+2. Enter the patient's email, then pick one:
+   - **Give them a password now** — today's in-person handover: type a
+     temporary password and share it with the patient through whatever
+     channel your hospital uses. This sends no email — deliberately, since the
+     address on file may be a placeholder or a relative's, and staff are
+     handing the credential over directly.
+   - **Email them a set-up link** — no password is typed; an invite link is
+     emailed instead, valid for 7 days. Only use this when the address on file
+     is genuinely the patient's own — whoever can read that inbox can open the
+     record.
+   Either way this calls `POST /api/patients/[id]`, which enforces **exactly
+   one login per patient** — updating their existing account in place if they
+   already have one, and refusing any email already used by someone else
    (`src/server/patients/portalAccessService.ts`).
-3. Share the email + temporary password with the patient through whatever
-   channel your hospital uses (not emailed automatically — see "Notes for
-   production" below).
-4. The patient signs in at `/login?role=patient`. They land on `/patient`,
-   seeing all 7 tabs for their own record only, entirely read-only.
-5. To reset a password, staff repeat steps 1–2 with the same email.
+3. The patient signs in at `/login?role=patient` (with the password you gave
+   them, or after following the emailed link to set their own). They land on
+   `/patient`, seeing all 7 tabs for their own record only, entirely
+   read-only.
+4. To reset access, staff repeat steps 1–2 with the same email — or the
+   patient can use **"Forgot password"** at `/login?role=patient` themselves,
+   since self-serve password reset now covers every account type, not just
+   this flow.
 
 ## Setup
 
@@ -101,6 +113,10 @@ Patients don't self-register; staff grant access per patient:
    - `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` — first hospital-admin login
    - `SEED_SUPER_ADMIN_EMAIL` / `SEED_SUPER_ADMIN_PASSWORD` — first Super
      Admin login (every facility, plus reviewing researcher requests)
+   - `SMTP_*` / `EMAIL_FROM` — optional; outbound mail prints to the console
+     instead of sending while unset
+   - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` — optional; the Google
+     sign-in button only appears once both are set (see `docs/DEPLOYMENT.md`)
 
 3. **Create the database schema**
    ```bash
@@ -200,9 +216,14 @@ adding validation, etc.) — the short version is: **domain config lives in
 
 - Passwords are hashed with bcrypt; make sure `NEXTAUTH_SECRET` is a strong,
   private value in production and HTTPS is enforced.
-- The patient-portal login is created manually by staff per patient. For a
-  self-service flow, add a signed invite-link/email step instead of typing a
-  temporary password directly.
+- Facility admins and invited patients get a set-password link by email, never
+  a typed temporary password (`src/server/email/`, `scripts/email-worker.ts`).
+  Provisioning an admin or sending a patient invite now depends on that
+  worker running — see `docs/DEPLOYMENT.md`.
+- Google sign-in is additive, never a replacement: every provisioned account
+  keeps its password path, and Google can sign into an existing account but
+  only ever create one for researcher self-signup
+  (`src/domain/auth/googleSignIn.ts`).
 - Mutating writes are audit-logged to the `AuditLog` table
   (`src/server/http/audit.ts`), and rate limiting is applied to sign-in and the
   unauthenticated routes (`src/server/http/rateLimit.ts`). The admin API routes

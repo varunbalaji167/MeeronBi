@@ -44,6 +44,12 @@ const DETAIL_MESSAGES: Partial<Record<string, string>> = {
   "ANALYTICS.SAME_FIELD_AS_FILTER": "Pick a different field for the filter than the one you're analyzing.",
   "ANALYTICS.FIELD_NOT_ANALYZABLE": "That field can't be analyzed this way — pick a different one.",
   "ANALYTICS.TIME_SERIES_MODE_CONFLICT": "Choose either a patient or a filter category, not both.",
+  "AUTH.TOKEN_INVALID": "This link isn't valid. Request a new one.",
+  "AUTH.TOKEN_EXPIRED": "This link has expired. Request a new one.",
+  "AUTH.TOKEN_WRONG_PURPOSE": "This link isn't valid. Request a new one.",
+  "AUTH.EMAIL_NOT_VERIFIED":
+    "Please verify your email before signing in — check your inbox for the verification link, or request a new one.",
+  "AUTH.PASSWORD_NOT_SET": "You haven't set a password yet — check your email for the set-up link.",
 };
 
 /** Maps a caught error to a short, actionable toast message. */

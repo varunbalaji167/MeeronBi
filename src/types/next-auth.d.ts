@@ -16,6 +16,10 @@ declare module "next-auth" {
       facilityId: string;
       // Display-only for RESEARCHER; access control re-checks this fresh from the database.
       researcherStatus: ResearcherStatus | null;
+      // ISO string (JWTs round-trip through JSON, so a Date never survives) compared against the DB value
+      // on every request (server/auth/guards.ts's assertSessionFresh) so a password reset evicts any
+      // session issued before it, rather than waiting out the 30-day JWT maxAge.
+      passwordChangedAt: string | null;
     };
   }
   interface User {
@@ -24,6 +28,7 @@ declare module "next-auth" {
     patientId: string | null;
     facilityId: string;
     researcherStatus: ResearcherStatus | null;
+    passwordChangedAt: string | null;
   }
 }
 
@@ -33,5 +38,6 @@ declare module "next-auth/jwt" {
     patientId: string | null;
     facilityId: string;
     researcherStatus: ResearcherStatus | null;
+    passwordChangedAt: string | null;
   }
 }

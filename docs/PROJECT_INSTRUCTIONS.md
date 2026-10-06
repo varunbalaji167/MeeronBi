@@ -108,6 +108,10 @@ should assume that trajectory without over-building for it today — see
 - Any new public/unauthenticated endpoint needs an explicit privacy
   justification in a code comment — default to requiring auth, don't add
   an exception without one.
+- An external identity provider (Google) never decides `role` or
+  `facilityId`. It can only sign in to an account that already exists;
+  only researcher self-signup may create one, and even then with a
+  `PENDING` profile like any other signup (`domain/auth/googleSignIn.ts`).
 - Before hardcoding any reference list (a country's regions, a set of
   categories), check whether it's genuinely small and stable (safe to
   hardcode, like Manipur's 16 districts or India's 28 states) or large

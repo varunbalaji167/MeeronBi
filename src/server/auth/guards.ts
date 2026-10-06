@@ -10,16 +10,28 @@ import { patientNotFoundInFacilityError } from "@/server/patients/errors";
  * Roles: SUPER_ADMIN (all facilities), ADMIN (own facility), PATIENT (own record), RESEARCHER (analytics-only, gated separately).
  * facilityId is the tenant boundary for ADMIN/PATIENT; a cross-facility patient reports NotFoundError, never ForbiddenError.
  * SUPER_ADMIN's facilityId is an administrative home only and bypasses the facility-match check everywhere below.
+ * Google authenticates, this database authorizes: Google sign-in can only sign into an account that
+ * already exists here, never from the Google profile — see domain/auth/googleSignIn.ts.
  */
 
 export async function getSession() {
   return getServerSession(authOptions);
 }
 
-/** Confirms the session's user id still exists, catching a stale cookie left over from a DB reset/reseed. */
-async function userExists(userId: string): Promise<boolean> {
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
-  return !!user;
+/**
+ * Confirms the session's user id still exists (catching a stale cookie left over from a DB reset/reseed)
+ * and that its passwordChangedAt still matches the DB. Sessions are 30-day JWTs with no rotation, so without
+ * this a password reset would not evict a session an attacker already holds — comparing this one extra
+ * column (already fetched on every request guards run) makes a reset actually mean something.
+ */
+async function assertSessionFresh(session: Session): Promise<void> {
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { id: true, passwordChangedAt: true },
+  });
+  if (!user) throw sessionStaleError();
+  const dbValue = user.passwordChangedAt?.toISOString() ?? null;
+  if (dbValue !== session.user.passwordChangedAt) throw sessionStaleError();
 }
 
 /** Require an authenticated ADMIN or SUPER_ADMIN session; throws otherwise. SUPER_ADMIN is a strict superset of ADMIN — every existing ADMIN-only route should also work for the MeeronBi team without a separate check. */
@@ -29,7 +41,7 @@ export async function requireAdminSession(): Promise<Session> {
   if (session.user.role !== "ADMIN" && session.user.role !== "SUPER_ADMIN") {
     throw wrongRoleError("Admin access only.");
   }
-  if (!(await userExists(session.user.id))) throw sessionStaleError();
+  await assertSessionFresh(session);
   return session;
 }
 
@@ -38,7 +50,7 @@ export async function requireSuperAdminSession(): Promise<Session> {
   const session = await getSession();
   if (!session?.user) throw new UnauthorizedError();
   if (session.user.role !== "SUPER_ADMIN") throw wrongRoleError("Super-admin access only.");
-  if (!(await userExists(session.user.id))) throw sessionStaleError();
+  await assertSessionFresh(session);
   return session;
 }
 
@@ -49,7 +61,7 @@ export async function requirePatientSession(): Promise<Session> {
   if (session.user.role !== "PATIENT" || !session.user.patientId) {
     throw wrongRoleError("Patient access only.");
   }
-  if (!(await userExists(session.user.id))) throw sessionStaleError();
+  await assertSessionFresh(session);
   return session;
 }
 
@@ -96,7 +108,7 @@ export async function requireAnalyticsSession(): Promise<Session> {
   if (!session?.user) throw new UnauthorizedError();
 
   if (session.user.role === "ADMIN" || session.user.role === "SUPER_ADMIN") {
-    if (!(await userExists(session.user.id))) throw sessionStaleError();
+    await assertSessionFresh(session);
     return session;
   }
 

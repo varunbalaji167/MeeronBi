@@ -20,7 +20,6 @@ const createFacilityBodySchema = z.object({
   stateCode: z.string().optional(),
   adminName: z.string().optional(),
   adminEmail: z.string(),
-  adminPassword: z.string(),
 });
 
 // Super-admin-only: creates a new facility and hands it its first ADMIN login, in one step.

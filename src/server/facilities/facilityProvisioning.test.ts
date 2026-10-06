@@ -23,7 +23,6 @@ describe("validateFacilityProvisioningInput", () => {
   const validInput = {
     name: "City General Hospital",
     adminEmail: "admin@city-general.example.org",
-    adminPassword: "ChangeMe123!",
   };
 
   it("auto-derives the slug from the name when none is given", () => {
@@ -62,19 +61,14 @@ describe("validateFacilityProvisioningInput", () => {
     expect(() => validateFacilityProvisioningInput({ ...validInput, adminEmail: "  " })).toThrow();
   });
 
-  it("rejects an admin password shorter than 6 characters", () => {
-    expect(() => validateFacilityProvisioningInput({ ...validInput, adminPassword: "abc12" })).toThrow();
-  });
-
   it("collects every field error at once rather than stopping at the first", () => {
     try {
-      validateFacilityProvisioningInput({ name: "", adminEmail: "", adminPassword: "" });
+      validateFacilityProvisioningInput({ name: "", adminEmail: "" });
       expect.fail("expected validateFacilityProvisioningInput to throw");
     } catch (err: any) {
       expect(err.fieldErrors).toMatchObject({
         name: expect.any(String),
         adminEmail: expect.any(String),
-        adminPassword: expect.any(String),
       });
     }
   });

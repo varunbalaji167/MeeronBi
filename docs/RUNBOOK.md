@@ -221,6 +221,34 @@ Users reach `/login` but cannot sign in.
 - **Researchers only** — their approval status is re-checked against the
   database on every call, so a `PENDING` or `REJECTED` profile blocks sign-in
   by design.
+- **"Continue with Google" doesn't appear** — `GOOGLE_CLIENT_ID` /
+  `GOOGLE_CLIENT_SECRET` are unset; the button is absent, not broken.
+- **Google sign-in redirects back with an error** — the message is a
+  `google-<reason>` code (see `domain/auth/googleSignIn.ts`), not a stack
+  trace; any unexpected failure is logged server-side and replaced with
+  `google-error` before reaching the client. Check `pm2 logs meeronbi`.
+
+---
+
+## Emails not sending
+
+```bash
+sudo -iu deploy pm2 logs meeronbi-email-worker --lines 100
+```
+
+- **Worker won't boot / exits immediately** — `assertEmailConfigured()` throws
+  if `SMTP_HOST` isn't set in production. Confirm `shared/.env` has the full
+  `SMTP_*` block, then `pm2 restart meeronbi-email-worker`.
+- **Worker is up, but mail never arrives, and `email_outbox` rows stay
+  `SENT` with no real delivery** — the worker only reads `.env` at process
+  start (`scripts/email-worker.ts` imports `dotenv/config` explicitly, since
+  `tsx` doesn't load it automatically the way `next start` does). Editing
+  `shared/.env` requires restarting the worker, not just the main app:
+  `pm2 restart meeronbi-email-worker`.
+- **A specific row is stuck `FAILED`** — check its `lastError` column
+  (`npx prisma studio`, `email_outbox` table) for the SMTP rejection reason.
+- **`wrong version number` SSL error** — a `secure`/port mismatch (port `587`
+  wants `SMTP_SECURE="false"` for STARTTLS; port `465` wants `"true"`).
 
 ---
 

@@ -56,13 +56,17 @@ with the stack trace that caused it.
 `scripts/smoke.sh` probes a running instance. CI and the deploy health gate
 use the same script, so what passes in CI is what is checked in production.
 
-21 assertions across four groups:
+25 assertions across four groups:
 
 - **Liveness** — `/api/health` reports `ok` with a reachable database, and its
   timestamp changes between calls. A prerendered health check would report
   `ok` against a dead database and would also blind the deploy's rollback gate.
-- **Public surfaces** — `/login`, `/public/trends`, `/researcher-access` and
-  `/api/public/trends` render; unknown routes 404.
+- **Public surfaces** — `/login`, `/public/trends`, `/researcher-access`,
+  `/forgot-password`, `/set-password`, `/verify-email` and
+  `/api/public/trends` render; unknown routes 404. Also confirms
+  `POST /api/auth/password-reset/request` never 500s for an unknown address —
+  a crash there would be as much of an account-enumeration oracle as a
+  differing response body.
 - **Auth boundary** — `/admin`, `/patient` and `/researcher` redirect an
   unauthenticated visitor; protected API routes return 401. A 200 here means a
   guard or middleware stopped being applied, which the unit suite cannot see.
@@ -121,6 +125,16 @@ re-checking:
 - **`gestationalAge.ts`**, **`fieldVisibility.ts`**, **`phone.ts`**,
   **`tabs/delivery.ts`** — the remaining domain logic with real branching
   behavior a regression could silently break.
+- **`auth/credentialToken.ts`** — `checkToken`'s purpose/expiry/consumption
+  state machine, including the exact boundary (`now === expiresAt`) and why
+  wrong-purpose is checked before expiry (a longer-lived invite token must
+  never be replayable against a shorter-lived reset window).
+- **`auth/googleSignIn.ts`** — `resolveGoogleSignIn`'s verdict logic:
+  unverified email rejects even with a linked user, every role can link via
+  email once provisioned, the researcher approval gate applies on both the
+  linked and email-matched paths, and no match plus signup disallowed
+  rejects rather than ever creating an account — the test that keeps the
+  tenant boundary out of Google's hands.
 - **`result.ts`**, **`textPatterns.ts`**, **`locale.ts`** — intentionally
   light: documenting the contract, not enumerating cases, because there is
   no complex branching in any of them to regress.

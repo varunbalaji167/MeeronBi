@@ -213,7 +213,34 @@ chmod 600 /var/www/meeronbi/shared/.env
 | `NEXT_PUBLIC_APP_ORIGIN` | Same domain, no protocol or trailing slash |
 | `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` | Real credentials; placeholders only on a disposable instance |
 | `SEED_SUPER_ADMIN_EMAIL` / `SEED_SUPER_ADMIN_PASSWORD` | Same — this account crosses facility boundaries |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_USER` / `SMTP_PASSWORD` | Outbound mail transport. Leaving `SMTP_HOST` blank makes the worker log every email to its own stdout instead of sending — fine for a disposable instance, not for production. |
+| `EMAIL_FROM` | `"From"` header for outbound mail, e.g. `MeeronBi <no-reply@yourdomain>` |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth 2.0 client credentials. Leaving either blank disables Google sign-in entirely — the buttons just don't render, credentials login is unaffected. |
 | `SENTRY_DSN` | Real DSN, or blank (a safe no-op) |
+
+> **Google sign-in setup.** In Google Cloud Console, create an OAuth 2.0
+> Client ID (type: Web application) and register **both** authorized
+> redirect URIs — one Google OAuth client backs two NextAuth provider ids,
+> plain sign-in and sign-in-or-researcher-signup (see
+> `src/domain/auth/googleSignIn.ts` and `src/server/auth/authOptions.ts`):
+>
+> ```
+> https://<this instance's domain>/api/auth/callback/google
+> https://<this instance's domain>/api/auth/callback/google-signup
+> ```
+>
+> Google can only ever sign in to an account that already exists in this
+> database (provisioned by a super admin or an existing patient/researcher
+> login) — it can never mint an ADMIN or SUPER_ADMIN, and can only create a
+> new account for researcher self-signup, same `PENDING`-approval path as
+> credentials signup.
+
+> **Provisioning a facility admin or a patient portal invite depends on
+> `meeronbi-email-worker` being up** (see `ecosystem.config.cjs`) — both send
+> a set-password link through the `email_outbox` table rather than a typed
+> password, and nothing else drains that table. If the worker is down, a
+> newly provisioned admin or invited patient gets no link and cannot sign in
+> until it's running again and catches up.
 
 ### 6. First release
 

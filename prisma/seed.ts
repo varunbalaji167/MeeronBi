@@ -55,7 +55,7 @@ async function seedSuperAdmin(facilityId: string) {
 
   const passwordHash = await bcrypt.hash(password, 10);
   const superAdmin = await prisma.user.create({
-    data: { email, passwordHash, name: "MeeronBi Team", role: "SUPER_ADMIN", facilityId },
+    data: { email, passwordHash, name: "MeeronBi Team", role: "SUPER_ADMIN", facilityId, emailVerifiedAt: new Date() },
   });
 
   console.log(`Created super admin user:
@@ -129,6 +129,7 @@ async function seedResearchers(hqFacilityId: string, superAdminId: string) {
         name: r.name,
         role: "RESEARCHER",
         facilityId: hqFacilityId,
+        emailVerifiedAt: new Date(),
         researcherProfile: {
           create: {
             institution: r.institution,
@@ -157,7 +158,7 @@ async function seedAdmin(facilityId: string) {
 
   const passwordHash = await bcrypt.hash(password, 10);
   const admin = await prisma.user.create({
-    data: { email, passwordHash, name: "System Admin", role: "ADMIN", facilityId },
+    data: { email, passwordHash, name: "System Admin", role: "ADMIN", facilityId, emailVerifiedAt: new Date() },
   });
 
   console.log(`Created admin user:
@@ -466,6 +467,7 @@ async function seedDemoPatient(createdById: string, facilityId: string) {
       passwordHash,
       role: "PATIENT",
       facilityId,
+      emailVerifiedAt: new Date(),
       patient: { connect: { id: patient.id } },
     },
   });

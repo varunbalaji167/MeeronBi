@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
 import { AlertTriangle } from "lucide-react";
 import Spinner from "./Spinner";
 
@@ -15,6 +15,8 @@ interface Props {
   loading?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
+  /** Extra content (e.g. an optional note field) rendered between the message and the buttons. */
+  children?: ReactNode;
 }
 
 /** Styled replacement for window.confirm(); focuses cancel on open and closes on Escape. */
@@ -28,6 +30,7 @@ export default function ConfirmDialog({
   loading,
   onConfirm,
   onCancel,
+  children,
 }: Props) {
   const titleId = useId();
   const messageId = useId();
@@ -75,6 +78,7 @@ export default function ConfirmDialog({
             </p>
           </div>
         </div>
+        {children && <div className="mt-3">{children}</div>}
         <div className="mt-5 flex justify-end gap-2">
           <button
             ref={cancelRef}

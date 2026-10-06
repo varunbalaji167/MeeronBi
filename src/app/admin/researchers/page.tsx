@@ -6,12 +6,13 @@ import { useToast } from "@/context/ToastContext";
 import { toApiError, friendlyErrorMessage } from "@/lib/apiClient";
 import Spinner from "@/components/ui/Spinner";
 import ErrorBanner from "@/components/ui/ErrorBanner";
-import { Check, X, ShieldCheck } from "lucide-react";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import { Check, X, ShieldCheck, MailWarning } from "lucide-react";
 
 type Status = "PENDING" | "APPROVED" | "REJECTED";
 
 interface ResearcherRequest {
-  user: { id: string; name: string | null; email: string; createdAt: string };
+  user: { id: string; name: string | null; email: string; createdAt: string; emailVerifiedAt: string | null };
   status: Status;
   institution: string;
   purpose: string;
@@ -33,6 +34,8 @@ export default function ResearcherRequestsPage() {
   const [requests, setRequests] = useState<ResearcherRequest[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actingOn, setActingOn] = useState<string | null>(null);
+  const [rejectTarget, setRejectTarget] = useState<string | null>(null);
+  const [reviewNote, setReviewNote] = useState("");
 
   useEffect(() => {
     if (!isSuperAdmin) return;
@@ -55,13 +58,13 @@ export default function ResearcherRequestsPage() {
     };
   }, [tab, isSuperAdmin]);
 
-  async function act(userId: string, action: "approve" | "reject") {
+  async function act(userId: string, action: "approve" | "reject", note?: string) {
     setActingOn(userId);
     try {
       const res = await fetch(`/api/admin/researchers/${userId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action }),
+        body: JSON.stringify({ action, reviewNote: note }),
       });
       if (!res.ok) throw await toApiError(res, `Failed to ${action} this request.`);
       showToast(action === "approve" ? "Researcher approved." : "Request rejected.", "success");
@@ -71,6 +74,18 @@ export default function ResearcherRequestsPage() {
     } finally {
       setActingOn(null);
     }
+  }
+
+  function openReject(userId: string) {
+    setReviewNote("");
+    setRejectTarget(userId);
+  }
+
+  async function confirmReject() {
+    if (!rejectTarget) return;
+    const note = reviewNote.trim() || undefined;
+    await act(rejectTarget, "reject", note);
+    setRejectTarget(null);
   }
 
   if (authLoading) return null;
@@ -122,7 +137,18 @@ export default function ResearcherRequestsPage() {
           <div key={req.user.id} className="panel">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <p className="font-medium text-ink">{req.user.name || req.user.email}</p>
+                <div className="flex items-center gap-2">
+                  <p className="font-medium text-ink">{req.user.name || req.user.email}</p>
+                  {!req.user.emailVerifiedAt && (
+                    <span
+                      className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700"
+                      title="This researcher hasn't verified their email address yet."
+                    >
+                      <MailWarning className="h-3 w-3" />
+                      Email unverified
+                    </span>
+                  )}
+                </div>
                 <p className="text-sm text-ink-soft">{req.user.email}</p>
                 <p className="mt-1 text-xs text-ink-faint">{req.institution}</p>
               </div>
@@ -131,14 +157,15 @@ export default function ResearcherRequestsPage() {
                   <button
                     className="btn-secondary !py-1.5 text-xs"
                     disabled={actingOn === req.user.id}
-                    onClick={() => act(req.user.id, "reject")}
+                    onClick={() => openReject(req.user.id)}
                   >
                     {actingOn === req.user.id ? <Spinner className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
                     Reject
                   </button>
                   <button
                     className="btn-primary !py-1.5 text-xs"
-                    disabled={actingOn === req.user.id}
+                    disabled={actingOn === req.user.id || !req.user.emailVerifiedAt}
+                    title={!req.user.emailVerifiedAt ? "This researcher hasn't verified their email address yet." : undefined}
                     onClick={() => act(req.user.id, "approve")}
                   >
                     {actingOn === req.user.id ? <Spinner className="h-3.5 w-3.5" light /> : <Check className="h-3.5 w-3.5" />}
@@ -157,6 +184,25 @@ export default function ResearcherRequestsPage() {
           </div>
         ))}
       </div>
+
+      <ConfirmDialog
+        open={rejectTarget !== null}
+        title="Reject this request?"
+        message="The researcher will be notified by email. You can add an optional note explaining why."
+        confirmLabel="Reject"
+        danger
+        loading={actingOn === rejectTarget}
+        onConfirm={confirmReject}
+        onCancel={() => setRejectTarget(null)}
+      >
+        <textarea
+          className="input-field"
+          rows={3}
+          placeholder="Optional note to the researcher…"
+          value={reviewNote}
+          onChange={(e) => setReviewNote(e.target.value)}
+        />
+      </ConfirmDialog>
     </div>
   );
 }

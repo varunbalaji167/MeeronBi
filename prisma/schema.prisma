@@ -62,13 +62,16 @@ model Facility {
 }
 
 model User {
-  id           String    @id @default(cuid())
-  email        String    @unique
-  passwordHash String
-  name         String?
-  role         Role      @default(ADMIN)
-  createdAt    DateTime  @default(now())
-  lastLoginAt  DateTime?
+  id                String    @id @default(cuid())
+  email             String    @unique
+  // Null until an invited user sets one, or for an OAuth-only account.
+  passwordHash      String?
+  name              String?
+  role              Role      @default(ADMIN)
+  createdAt         DateTime  @default(now())
+  lastLoginAt       DateTime?
+  emailVerifiedAt   DateTime?
+  passwordChangedAt DateTime?
 
   // SUPER_ADMIN/RESEARCHER are anchored to a seeded "HQ" facility as an administrative home only.
   facilityId String
@@ -86,8 +89,29 @@ model User {
 
   auditLogs AuditLog[]
 
+  credentialTokens CredentialToken[]
+
+  oauthAccounts OAuthAccount[]
+
   @@index([facilityId])
   @@map("users")
+}
+
+// We authenticate with Google but never call Google APIs on the user's behalf, so no
+// access/refresh tokens are stored — fewer secrets at rest.
+model OAuthAccount {
+  id                String   @id @default(cuid())
+  provider          String
+  // Google's stable `sub`. Linking on this, not the mutable email, is what keeps a
+  // later email change from silently re-pointing an identity at a different account.
+  providerAccountId String
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt         DateTime @default(now())
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("oauth_accounts")
 }
 
 // One per RESEARCHER-role User — the request-and-approval record for the researcher-access flow.
@@ -276,4 +300,57 @@ model AuditLog {
 
   @@index([facilityId, entityType, entityId])
   @@map("audit_logs")
+}
+
+enum EmailStatus {
+  PENDING
+  SENDING
+  SENT
+  FAILED
+}
+
+// Transactional outbox: a row is written inside the same transaction as the change
+// it announces, so an email can never be lost to a rollback or sent for one.
+model EmailOutbox {
+  id             String      @id @default(cuid())
+  template       String
+  toEmail        String
+  // Rendered at send time, not enqueue time, so fixing a template also fixes queued mail.
+  payload        Json
+  status         EmailStatus @default(PENDING)
+  attempts       Int         @default(0)
+  nextAttemptAt  DateTime    @default(now())
+  // Worker run id; a claim marker, so a second worker process stays safe later.
+  claimedBy      String?
+  claimedAt      DateTime?
+  lastError      String?     @db.Text
+  sentAt         DateTime?
+  // e.g. "researcher-approved:<userId>" — a double-clicked button enqueues once.
+  idempotencyKey String?     @unique
+  createdAt      DateTime    @default(now())
+
+  @@index([status, nextAttemptAt])
+  @@map("email_outbox")
+}
+
+enum CredentialTokenPurpose {
+  EMAIL_VERIFICATION // self-serve researcher signup proving their address
+  ACCOUNT_INVITE     // a provisioned user choosing their first password
+  PASSWORD_RESET     // self-serve reset
+}
+
+// Single-use credential tokens. Only the sha256 hash is stored, for the same reason
+// passwords are hashed: a database leak must not yield usable links.
+model CredentialToken {
+  id         String                 @id @default(cuid())
+  tokenHash  String                 @unique
+  userId     String
+  user       User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  purpose    CredentialTokenPurpose
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime               @default(now())
+
+  @@index([userId, purpose])
+  @@map("credential_tokens")
 }

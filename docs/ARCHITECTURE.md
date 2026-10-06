@@ -76,14 +76,29 @@ src/
     locale.ts              Date/measurement formatting per Facility.locale
     textPatterns.ts        Shared free-text normalization patterns
     result.ts              Result<T,E> type used across server/analytics
+    auth/
+      credentialToken.ts     Purpose/expiry/consumption state machine for invite/reset/verify tokens
+      googleSignIn.ts         resolveGoogleSignIn: pure verdict logic for Google sign-in/link/signup
+    notifications/
+      emailTemplates.ts       renderEmail: subject/text/html per template, all HTML escaped
+      retryPolicy.ts          Backoff schedule for a failed outbox send
     index.ts               Top-level barrel re-exporting all of the above
+
+  config/
+    env.ts                  Zod-parsed SMTP/Google env (emailConfig/googleConfig are null when unset)
 
   server/                 Server-only: DB, auth, business services
     db/prisma.ts            PrismaClient singleton
     http/withApiErrorHandling.ts  Wraps every route handler so thrown errors become valid JSON, never an empty body
+    email/
+      outbox.ts               email_outbox CRUD — enqueue inside a caller's transaction, claim/mark for the worker
+      transport.ts            getMailer(): real SMTP, or a console transport when SMTP_HOST is unset
     auth/
       authOptions.ts         NextAuth config (providers, session/jwt callbacks)
       guards.ts              Session guards per role, plus requireAdminSessionForPatient/assertPatientRecordAccessible — facility-scoped, see below
+      credentialTokens.ts     issueToken/consumeToken/peekToken — hashes tokens, never stores the raw value
+      credentialFlows.ts      setPassword/requestPasswordReset/verifyEmail/linkGoogleAccount
+      googleResearcherSignupToken.ts  Short-lived JWT bridging Google signup to the no-session researcher-signup form
     facilities/
       facilityRepository.ts      Resolves the tenant for contexts with no session (currently just /public/trends)
     patients/
@@ -109,10 +124,16 @@ src/
     admin/                 Hospital staff area (sidebar shell, patient list, per-patient tabs)
     patient/               Patient portal area (sidebar shell, read-only record view)
     researcher/            Approved-researcher analytics area
-    researcher-access/     Public form for requesting researcher access
+    researcher-access/     Public form for requesting researcher access, or "Sign up with Google"
+      complete/              No-session completion form after a Google researcher-signup redirect
+    forgot-password/       Public, no-enumeration "send me a reset link" form
+    set-password/          Consumes an ACCOUNT_INVITE or PASSWORD_RESET token
+    verify-email/          Consumes an EMAIL_VERIFICATION token
     public/trends/         No-login aggregate stats page
     login/                 Shared login page (role-hinted via ?role=admin|patient|researcher)
     api/                   REST-ish route handlers — each one is a thin controller
+      auth/                  password-reset/request, set-password, verify-email(+resend), [...nextauth]
+      researcher-access/     request (credentials signup), google-start, google-complete
 
   components/
     ui/                    Generic, dumb, reusable anywhere (Spinner, ErrorBanner)

@@ -9,7 +9,10 @@ import { parseJson } from "@/server/http/parseJson";
 
 const portalAccessBodySchema = z.object({
   email: z.string(),
-  password: z.string(),
+  method: z.discriminatedUnion("kind", [
+    z.object({ kind: z.literal("password"), password: z.string() }),
+    z.object({ kind: z.literal("invite") }),
+  ]),
 });
 
 export const GET = withApiErrorHandling(async (_req: NextRequest, { params }: { params: { id: string } }) => {
@@ -32,12 +35,12 @@ export const DELETE = withApiErrorHandling(async (_req: NextRequest, { params }:
   return NextResponse.json({ ok: true });
 });
 
-/** Create/replace this patient's portal login. Body: { email, password }. */
+/** Create/replace this patient's portal login. Body: { email, method }. */
 export const POST = withApiErrorHandling(async (req: NextRequest, { params }: { params: { id: string } }) => {
   const session = await requireAdminSessionForPatient(params.id);
 
   const body = await parseJson(req, portalAccessBodySchema);
-  const result = await setPatientPortalAccess(params.id, body.email, body.password, session.user.id);
+  const result = await setPatientPortalAccess(params.id, body.email, body.method, session.user.id);
 
   return NextResponse.json({ ok: true, email: result.email });
 });

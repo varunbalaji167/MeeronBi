@@ -124,8 +124,25 @@ echo "Public surfaces render"
 expect_status /login 200 "/login renders"
 expect_status /public/trends 200 "/public/trends renders"
 expect_status /researcher-access 200 "/researcher-access renders"
+expect_status /forgot-password 200 "/forgot-password renders"
+expect_status /set-password 200 "/set-password renders"
+expect_status /verify-email 200 "/verify-email renders"
 expect_status /api/public/trends 200 "/api/public/trends responds"
 expect_status /this-route-does-not-exist 404 "unknown route 404s cleanly"
+echo
+
+# --- Password reset request: no account enumeration -----------------------
+# A 500 here would mean an unknown address crashes the endpoint instead of returning the same
+# response as a real one — exactly the account-enumeration oracle this route must never become.
+echo "Password reset request doesn't enumerate accounts"
+PWRESET_STATUS="$(http -X POST "$BASE/api/auth/password-reset/request" \
+  -H 'Content-Type: application/json' \
+  --data '{"email":"no-such-account@example.org"}')"
+if [[ "$PWRESET_STATUS" != "500" ]]; then
+  pass "POST /api/auth/password-reset/request for an unknown address doesn't 500 ($PWRESET_STATUS)"
+else
+  fail "POST /api/auth/password-reset/request for an unknown address doesn't 500" "got HTTP 500"
+fi
 echo
 
 # --- Auth boundary --------------------------------------------------------

@@ -18,11 +18,28 @@ export async function getHqFacility() {
   return facility;
 }
 
-/** Real hospitals only, for super-admin facility pickers — excludes the administrative "hq" facility. */
+/** Real hospitals only, for super-admin facility pickers — excludes the administrative "hq" facility.
+ * Each facility's first ADMIN is surfaced so the facilities page can offer "resend invite" for one
+ * who hasn't set a password yet. */
 export async function listFacilities() {
-  return prisma.facility.findMany({
+  const facilities = await prisma.facility.findMany({
     where: { slug: { not: "hq" } },
-    select: { id: true, name: true, slug: true },
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      users: {
+        where: { role: "ADMIN" },
+        select: { id: true, email: true, passwordHash: true },
+        orderBy: { createdAt: "asc" },
+        take: 1,
+      },
+    },
     orderBy: { name: "asc" },
   });
+
+  return facilities.map(({ users, ...facility }) => ({
+    ...facility,
+    admin: users[0] ? { id: users[0].id, email: users[0].email, inviteAccepted: users[0].passwordHash !== null } : null,
+  }));
 }
