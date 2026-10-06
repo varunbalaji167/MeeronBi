@@ -67,7 +67,7 @@ jobs:
           SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
         run: |
           if [ -z "$SSH_PRIVATE_KEY" ] || [ -z "$SSH_KNOWN_HOSTS" ]; then
-            echo "::error::DEPLOY_SSH_KEY and DEPLOY_KNOWN_HOSTS repository secrets are not set. See docs/DEPLOYMENT.md §13."
+            echo "::error::DEPLOY_SSH_KEY and DEPLOY_KNOWN_HOSTS repository secrets are not set. See 'Continuous deployment' in docs/DEPLOYMENT.md."
             exit 1
           fi
           mkdir -p ~/.ssh

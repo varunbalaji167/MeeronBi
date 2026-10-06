@@ -4,7 +4,8 @@ How MeeronBi runs in production, how code gets there, and how to provision a
 new instance.
 
 Related: `docs/TESTING.md` (what CI verifies before anything ships),
-`docs/OPERATIONS.md` (backup and restore policy).
+`docs/RUNBOOK.md` (what to do when something fails), `docs/OPERATIONS.md`
+(backup and restore policy).
 
 ## Overview
 
