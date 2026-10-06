@@ -12,11 +12,7 @@ import { notifySuperAdminsOfResearcherRequest } from "@/server/researchers/resea
 const MIN_PASSWORD_LENGTH = 6;
 const PASSWORD_RESET_EXPIRES_MINUTES = TTL_MS_BY_PURPOSE.PASSWORD_RESET / 60_000;
 
-/**
- * Consumes an ACCOUNT_INVITE or PASSWORD_RESET token and sets the account's password. Verifying the email
- * is folded in here too: clicking a link sent to that address proves control of it, whichever of the two
- * purposes brought the user here.
- */
+/** Clicking an invite/reset link also proves email control, so verification is folded in. */
 export async function setPassword(rawToken: string, password: string): Promise<{ email: string }> {
   if (password.length < MIN_PASSWORD_LENGTH) {
     throw new ValidationError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`, {
@@ -61,11 +57,7 @@ export async function setPassword(rawToken: string, password: string): Promise<{
   });
 }
 
-/**
- * Public, self-serve "forgot password" entry point. Always succeeds from the caller's point of view —
- * the route layer responds 200 regardless of what this function does, so it must never throw for an
- * unknown email (see the route's own privacy-justification comment).
- */
+/** Never throws for an unknown email — no-enumeration. */
 export async function requestPasswordReset(rawEmail: string): Promise<void> {
   const email = rawEmail.toLowerCase().trim();
   if (!email) return;
@@ -87,9 +79,7 @@ export async function requestPasswordReset(rawEmail: string): Promise<void> {
   });
 }
 
-/** Consumes an EMAIL_VERIFICATION token, stamps emailVerifiedAt, and — for a researcher — fans the
- * request out to super admins. The fan-out only fires here, never at signup, so junk/typo'd
- * addresses never reach the review queue. */
+/** Researcher fan-out happens here, never at signup — see `notifySuperAdminsOfResearcherRequest`. */
 export async function verifyEmail(rawToken: string): Promise<{ email: string }> {
   return prisma.$transaction(async (tx) => {
     const { userId } = await consumeToken(tx, rawToken, "EMAIL_VERIFICATION");
@@ -137,10 +127,7 @@ export async function linkGoogleAccount(userId: string, googleSub: string, googl
   });
 }
 
-/**
- * Public resend entry point for an unverified account. Always succeeds from the caller's point of view,
- * same no-enumeration rule as requestPasswordReset.
- */
+/** Same no-enumeration rule as `requestPasswordReset`. */
 export async function resendVerificationEmail(rawEmail: string): Promise<void> {
   const email = rawEmail.toLowerCase().trim();
   if (!email) return;

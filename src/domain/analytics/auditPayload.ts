@@ -1,6 +1,4 @@
-// Shapes the metadata-only payload for an analytics-query audit row (see
-// analyticsplan/step-08-audit-logging.md). Never touches raw field values or per-patient data —
-// only already-serialized ref strings, a scope label, and a count derived from result counts.
+// Metadata-only audit payload — serialized ref strings and counts, never raw per-patient data.
 
 import { AnalyticsResult, TimeSeriesResult } from "./types";
 
@@ -27,9 +25,7 @@ export function sampleSizeOf(result: AnalyticsResult): number {
   }
 }
 
-/** Builds the `AuditLog.after` payload for a successful analytics query. `field`/`filter` must
- * already be serialized identifiers (e.g. via `refKey`/`describeRef`), never raw ref objects that
- * might carry option values. */
+/** `field`/`filter` must already be serialized via `refKey`/`describeRef` — never raw refs (option values leak). */
 export function buildAnalyticsAuditPayload(params: {
   field: string;
   filter: string | null;

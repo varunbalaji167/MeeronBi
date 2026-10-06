@@ -1,15 +1,5 @@
-/**
- * Manual QA only — NOT run automatically by `npm run seed`. Creates a
- * SECOND facility with its own admin, specifically so you can verify the
- * facility-isolation guards actually work: log in as this admin and
- * confirm you can't see or reach the default facility's demo patient
- * (visiting their /admin/patients/[id] URL directly should 404).
- *
- * Usage:
- *   npx tsx prisma/seed-second-facility.ts
- *
- * Safe to run multiple times — skips if this facility already exists.
- */
+// Manual QA fixture (`npx tsx prisma/seed-second-facility.ts`): a second facility + admin, to prove facility isolation —
+// signed in here, the default facility's patients should 404, not just hide.
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 

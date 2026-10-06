@@ -1,6 +1,4 @@
-// Analytics query validation + dispatch (docs/ANALYTICS.md §2, §5). The six cohort-mode
-// branches live in cohortBranches.ts, the two time-series branches in timeSeriesBranches.ts —
-// kept out of this file so the privacy-critical suppression logic in each is reviewable on its own.
+// Query validation + dispatch; branch logic lives in cohortBranches.ts and timeSeriesBranches.ts.
 
 import { Result, ok, err } from "@/domain/result";
 import {

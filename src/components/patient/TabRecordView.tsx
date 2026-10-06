@@ -48,9 +48,7 @@ export default function TabRecordView({ tabKey, patientId, readOnly, initialReco
       .then((json) => {
         if (!cancelled) setPersonalLmp(json?.data?.lmp ?? null);
       })
-      .catch(() => {
-        /* non-blocking */
-      });
+      .catch(() => {});
     return () => {
       cancelled = true;
     };
@@ -67,7 +65,6 @@ export default function TabRecordView({ tabKey, patientId, readOnly, initialReco
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [showCustomizer]);
 
-  // If fetching field-visibility preferences fails, fall back to defaults and notify.
   useEffect(() => {
     if (fieldVisibility.loadError) {
       showToast(fieldVisibility.loadError, "error");

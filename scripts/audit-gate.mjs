@@ -1,21 +1,7 @@
 #!/usr/bin/env node
-//
-// `npm audit` as a CI gate, with an expiring allowlist.
-//
-// A bare `npm audit` is useless as a gate: it is red the moment any upstream
-// advisory lands, so teams set `--audit-level` so high it catches nothing, or
-// they stop looking. This blocks on every high/critical advisory in the
-// *production* dependency tree except the ones explicitly accepted in
-// .github/audit-allowlist.json — and each acceptance carries an expiry date,
-// so an ignored advisory comes back as a CI failure instead of quietly
-// becoming permanent.
-//
-// Usage:
-//   node scripts/audit-gate.mjs            # gate: production deps, exit 1 on failure
-//   node scripts/audit-gate.mjs --report   # full tree incl. devDependencies, never fails
-//
-// No dependencies, deliberately: a security gate that needs its own supply
-// chain to run is a worse gate.
+// `npm audit` CI gate: blocks on prod high/critical advisories except those in .github/audit-allowlist.json,
+// where each acceptance has an expiry so ignored advisories come back as a CI failure.
+// Zero deps on purpose — a security gate that needs its own supply chain is a worse gate.
 
 import { execFileSync } from "node:child_process";
 import { readFileSync, existsSync } from "node:fs";

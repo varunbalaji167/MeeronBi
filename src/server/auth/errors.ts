@@ -57,9 +57,7 @@ export function tokenExpiredError(): ValidationError {
   return new ValidationError("This link has expired. Request a new one.", undefined, AUTH_ERROR.TOKEN_EXPIRED);
 }
 
-/** A token presented against the wrong endpoint's purpose (e.g. an invite token POSTed to password-reset) —
- * shown to the client with the same generic message as tokenInvalidError, but logged under its own detail
- * code so this specific, more serious case is distinguishable server-side. */
+/** Same client message as `tokenInvalidError`; distinct `detail` so this (more serious) case is distinguishable in logs. */
 export function tokenWrongPurposeError(): ValidationError {
   return new ValidationError("This link isn't valid. Request a new one.", undefined, AUTH_ERROR.TOKEN_WRONG_PURPOSE);
 }

@@ -13,10 +13,7 @@ interface UseFieldVisibilityResult {
   save: (names: string[]) => Promise<void>;
 }
 
-/**
- * Fetches/saves which fields are enabled for a tab (hospital-wide, admin-only). A server-read
- * `initialSelection` (null = never configured) skips the mount fetch; undefined means "not provided".
- */
+/** `initialSelection` seeds from server read (null = never configured, undefined = fetch on mount). */
 export function useFieldVisibility(tabKey: string, enabled: boolean, initialSelection?: string[] | null): UseFieldVisibilityResult {
   const router = useRouter();
   const seeded = initialSelection !== undefined;

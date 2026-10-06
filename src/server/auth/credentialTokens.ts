@@ -33,13 +33,7 @@ export async function issueToken(
   return rawToken;
 }
 
-/**
- * Loads by hash (the raw value is never stored), validates purpose/expiry/consumption, and consumes the
- * token. `expectedPurpose` accepts an array for endpoints shared across purposes (set-password serves both
- * ACCOUNT_INVITE and PASSWORD_RESET) — a token whose purpose isn't in the allowed set is rejected the same
- * way a single wrong purpose would be. A missing hash and a wrong purpose both surface to the client as the
- * same generic "this link isn't valid" message; only the thrown error's `detail` differs, for logging.
- */
+// Wrong-purpose and unknown-hash both surface the same generic client message; only logging differs.
 export async function consumeToken(
   tx: Prisma.TransactionClient,
   rawToken: string,

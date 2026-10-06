@@ -60,15 +60,14 @@ export interface GridSectionConfig {
   recommendedWindow?: GestationalWindow | GestationalWindow[];
 }
 
-// A "repeating" section is an open-ended group of entries. Default: one row per entry.
-// `transposed: true`: one column per entry (e.g. Obstetric History's G1, G2, ... columns).
-// `minCount` entries always shown; `maxCount` caps new additions (existing rows are never truncated).
 export interface RepeatingSectionConfig {
   kind: "repeating";
   name: string;
   title: string;
-  columnLabelPrefix?: string; // e.g. "G" -> G1, G2, ...
+  columnLabelPrefix?: string;
+  /** One column per entry (e.g. Obstetric History's G1, G2, ...) instead of one row. */
   transposed?: boolean;
+  /** Always-shown entry count; new entries can be added up to `maxCount`, existing ones are never truncated. */
   minCount?: number;
   maxCount?: number;
   addRowLabel?: string;

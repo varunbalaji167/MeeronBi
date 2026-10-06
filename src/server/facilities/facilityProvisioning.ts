@@ -36,11 +36,7 @@ export function slugify(name: string): string {
     .slice(0, 60);
 }
 
-/**
- * Validates and normalizes a facility+admin creation request. Throws ValidationError (with
- * per-field messages) on any problem; never touches the database, so callers are responsible for
- * checking slug/email uniqueness themselves.
- */
+/** Pure validation; never touches the DB, so callers must check slug/email uniqueness themselves. */
 export function validateFacilityProvisioningInput(
   input: CreateFacilityWithAdminInput
 ): ValidatedFacilityProvisioningInput {

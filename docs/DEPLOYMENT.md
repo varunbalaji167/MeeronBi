@@ -31,7 +31,7 @@ CI runs (lint, typecheck, unit tests, migrations against a throwaway MySQL,
 production build, boot, smoke test, security scans). On success, `deploy.yml`
 deploys **the exact commit CI tested** — not whatever `main` has moved on to.
 
-Watch Actions → Deploy for `healthy after Ns` and `Smoke: 21 passed, 0 failed`.
+Watch Actions → Deploy for `healthy after Ns` and `Smoke: all passed`.
 
 ### Rollback
 
@@ -381,8 +381,8 @@ answering on that address.
    previous release keeps serving.
 3. `current` flips; pm2 reloads.
 4. The release must answer `/api/health` with `"status":"ok"` and `"db":"ok"`,
-   then pass `scripts/smoke.sh` (21 assertions: liveness, public pages, the
-   auth boundary, security headers).
+   then pass `scripts/smoke.sh` (liveness, public pages, the auth boundary,
+   security headers).
 5. On failure of either, the symlink flips back, pm2 reloads the previous
    release, and the workflow fails.
 

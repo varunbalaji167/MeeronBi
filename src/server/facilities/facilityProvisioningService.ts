@@ -72,11 +72,7 @@ export async function createFacilityWithAdmin(rawInput: CreateFacilityWithAdminI
   });
 }
 
-/**
- * Re-issues a facility admin's invite link — for a bounced or expired email, so a super admin
- * doesn't have to delete and recreate the facility. `issueToken` invalidates the previous
- * outstanding invite, so only the new link works.
- */
+/** Invalidates the previous outstanding invite, so only the new link works. */
 export async function resendFacilityAdminInvite(userId: string): Promise<{ email: string }> {
   const admin = await prisma.user.findUnique({
     where: { id: userId },
