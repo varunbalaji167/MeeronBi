@@ -1,12 +1,40 @@
 # MeeronBi — Antenatal Care Data Analytics
 
-Next.js 14 (App Router) + MySQL (via Prisma) + NextAuth, rebuilt from the
-Google Apps Script prototype's 7 data-collection tabs (Personal, History,
-Investigation, Ultrasound, Delivery, Robson, Treatments).
+[![CI](https://github.com/varunbalaji167/MeeronBi/actions/workflows/ci.yml/badge.svg)](https://github.com/varunbalaji167/MeeronBi/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/varunbalaji167/MeeronBi/graph/badge.svg)](https://codecov.io/gh/varunbalaji167/MeeronBi)
+
+**[Live demo →](https://meeronbi-test.eikhoi.net)**
+
+A multi-tenant antenatal-care data platform: hospital staff record structured
+clinical data across 7 tabs per patient, patients get a read-only portal to
+their own record, and approved researchers run cohort analytics over
+anonymized, disclosure-controlled aggregates — never raw patient rows. Built
+for one hospital today, with every design decision (tenant isolation, field
+customization per facility, i18n-ready phone/locale handling) assuming it
+grows to many facilities, states, and countries.
+
+**Stack**: Next.js 14 (App Router) · MySQL via Prisma · NextAuth (credentials
++ Google OAuth) · Vitest · GitHub Actions CI/CD with automatic health-checked
+deploys and rollback.
+
+**Engineering highlights**:
+- Facility-scoped multi-tenancy enforced at the guard layer, not just in the
+  UI — a cross-tenant access attempt returns `404`, never `403`, so a tenant
+  boundary is never even confirmed to exist.
+- Statistical disclosure control on every analytics query (small-cell
+  suppression), so aggregate data can never be narrowed down to re-identify
+  an individual patient.
+- A pure, framework-free `domain/` layer (zero-setup unit tests, no mocking)
+  holding every clinically/legally sensitive rule — validation, the WHO
+  Robson classification, de-identification — see
+  [`docs/TESTING.md`](docs/TESTING.md).
+- Zero-downtime deploys: a release builds alongside the one already serving
+  traffic, flips over atomically, and rolls itself back automatically if its
+  health check fails — see [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 
 **For how the codebase is organized, why, and exactly where to make any given
-change, see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).** This README is
-just setup + a feature tour.
+change, see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).** The rest of this
+README is setup + a feature tour.
 
 ## Roles
 
@@ -152,8 +180,8 @@ patient** between two methods:
    comment for the manual QA steps it sets up.
 
    For realistic Analytics volume, `npx tsx prisma/seed-cs-register.ts`
-   (add `--dry-run` to preview) loads 60 de-identified deliveries from a real
-   2020 caesarean-section register (`prisma/cs-register/`): 30 into the
+   (add `--dry-run` to preview) loads 60 synthetic deliveries shaped like a
+   real 2020 caesarean-section register (`prisma/cs-register/`): 30 into the
    default facility, 15 each into two demo facilities it creates. Names and
    MRDs (`CSR-001`…) are synthetic, DOBs are derived from age, and it
    creates no user accounts.

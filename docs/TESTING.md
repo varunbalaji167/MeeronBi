@@ -151,10 +151,10 @@ container, so they are unit-tested alongside `domain/`:
   (`patientScope.test.ts`), which encode the tenant boundary.
 
 **`prisma/cs-register/` — the CS-register import mapping.** Pure, like
-`domain/`: every rule turning the hospital register's free-typed columns
-into tab values, plus whole-file checks that the committed register maps
-only to values the forms accept and reproduces the clinician's own Robson
-group on every row.
+`domain/`: every rule turning a hospital register's free-typed columns
+into tab values, plus whole-file checks that the committed mock register
+(synthetic data, shaped like a real register) maps only to values the
+forms accept and reproduces the clinician's own Robson group on every row.
 
 ## Out of scope
 

@@ -62,8 +62,16 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Unit tests (see docs/TESTING.md for scope)
-        run: npm test
+      - name: Unit tests with coverage (see docs/TESTING.md for scope)
+        run: npm run test:coverage
+
+      # Tokenless upload: fine for a public repo, and avoids holding a
+      # Codecov secret for a job with no write access to the repo anyway.
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./coverage/lcov.info
+          fail_ci_if_error: false
 
   # ---------------------------------------------------------------------
   # Supply chain and secrets. Independent of the build so a dependency
