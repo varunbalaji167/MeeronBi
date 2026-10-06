@@ -57,7 +57,7 @@ jobs:
 
       # deploy.sh is taken from the commit being deployed and piped over SSH,
       # so the server never holds a copy that can drift from the repo.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ steps.target.outputs.sha }}
 
