@@ -26,14 +26,14 @@ jobs:
       # token specifically for this automation pattern — it would not work
       # for a human-authored PR (no self-approval).
       - name: Approve
-        if: steps.metadata.outputs.dependency-group-name != ''
+        if: steps.metadata.outputs.dependency-group != ''
         run: gh pr review --approve "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Enable auto-merge
-        if: steps.metadata.outputs.dependency-group-name != ''
+        if: steps.metadata.outputs.dependency-group != ''
         run: gh pr merge --auto --squash "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
