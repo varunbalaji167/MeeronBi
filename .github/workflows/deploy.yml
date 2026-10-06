@@ -1,0 +1,123 @@
+name: Deploy
+
+# Fires only after CI has finished on main. Using workflow_run rather than
+# putting a deploy job inside ci.yml has one specific security property: the
+# version of THIS file that runs is always the one on the default branch, so a
+# pull request cannot modify the deploy steps or reach the deploy secrets.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: "Commit SHA to deploy (default: current main). Must already have passed CI."
+        required: false
+        type: string
+      rollback:
+        description: "Ignore 'sha' and flip the server back to the previous release"
+        required: false
+        default: false
+        type: boolean
+
+# Never cancel a deploy in flight — a half-applied release is worse than a
+# queued one. Deploys queue behind each other instead.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy to production
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # A failed, cancelled or skipped CI run must never reach this job.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+
+    steps:
+      - name: Resolve the commit to deploy
+        id: target
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            # The exact commit CI tested, not whatever main happens to be now.
+            SHA="${{ github.event.workflow_run.head_sha }}"
+          elif [ -n "${{ inputs.sha }}" ]; then
+            SHA="${{ inputs.sha }}"
+          else
+            SHA="${{ github.sha }}"
+          fi
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "Deploying $SHA"
+
+      # deploy.sh is taken from the commit being deployed and piped over SSH,
+      # so the server never holds a copy that can drift from the repo.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.target.outputs.sha }}
+
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          if [ -z "$SSH_PRIVATE_KEY" ] || [ -z "$SSH_KNOWN_HOSTS" ]; then
+            echo "::error::DEPLOY_SSH_KEY and DEPLOY_KNOWN_HOSTS repository secrets are not set. See docs/DEPLOYMENT.md §13."
+            exit 1
+          fi
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          # Pinned host key rather than StrictHostKeyChecking=no, which would
+          # accept any host that answers on that address.
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Roll back
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.rollback }}
+        env:
+          HOST: ${{ secrets.DEPLOY_HOST }}
+          USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes -o BatchMode=yes \
+            "$USER@$HOST" 'bash -s -- --rollback' < scripts/deploy.sh
+
+      - name: Deploy
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.rollback) }}
+        env:
+          HOST: ${{ secrets.DEPLOY_HOST }}
+          USER: ${{ secrets.DEPLOY_USER }}
+          SHA: ${{ steps.target.outputs.sha }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes -o BatchMode=yes \
+            "$USER@$HOST" "bash -s -- $SHA" < scripts/deploy.sh
+
+      # deploy.sh already smoke-tests from inside the box. This repeats the
+      # read-only probes from outside, over the real domain, so it also covers
+      # nginx, TLS and DNS — the parts a localhost probe cannot see.
+      - name: Verify the public URL
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.rollback) }}
+        env:
+          PUBLIC_URL: ${{ secrets.DEPLOY_PUBLIC_URL }}
+        run: |
+          if [ -z "$PUBLIC_URL" ]; then
+            echo "DEPLOY_PUBLIC_URL not set — skipping the external check."
+            echo "The in-server smoke test in deploy.sh already passed."
+            exit 0
+          fi
+          bash scripts/smoke.sh "$PUBLIC_URL"
+
+      - name: Result
+        if: always()
+        run: |
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "Deployed ${{ steps.target.outputs.sha }}."
+          else
+            echo "::error::Deploy failed. deploy.sh rolls the server back automatically on a failed health or smoke check — confirm the site is up, then check the step logs above."
+          fi
