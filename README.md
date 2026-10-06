@@ -162,13 +162,31 @@ Patients don't self-register; staff grant access per patient:
 ## Running the tests
 
 ```bash
-npm test          # single run
+npm test            # unit suite, single run
 npm run test:watch  # re-runs on file change
+npm run verify      # lint + typecheck + unit suite (mirrors CI)
+npm run security    # secret scan + SAST + dependency audit
 ```
 
 Domain-layer unit tests only (pure logic — no database needed) — see
 [`docs/TESTING.md`](docs/TESTING.md) for exactly what's covered, what's
 deliberately not, and why.
+
+## CI and deployment
+
+Every push and pull request runs three parallel gates
+([`docs/TESTING.md`](docs/TESTING.md)):
+
+- **`verify`** — lint, full-project typecheck, unit suite
+- **`app`** — applies migrations to a throwaway MySQL, runs the real
+  production build, boots it and smoke-tests the running app
+- **`security`** — secret scanning over full git history, Semgrep SAST, and a
+  dependency audit with an expiring allowlist
+
+A green run on `main` deploys automatically: the release is built alongside
+the running one, swapped in atomically, then health- and smoke-checked — and
+rolled back on its own if either fails. See
+[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 
 ## Extending the app
 

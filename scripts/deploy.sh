@@ -53,7 +53,7 @@ preflight() {
   for cmd in git node npm pm2 curl; do
     command -v "$cmd" >/dev/null 2>&1 || die "'$cmd' is not on PATH for this SSH session"
   done
-  [[ -d "$REPO_DIR" ]]        || die "$REPO_DIR missing — run the one-time server setup in docs/DEPLOYMENT.md §12"
+  [[ -d "$REPO_DIR" ]]        || die "$REPO_DIR missing — see 'Provisioning a new instance' in docs/DEPLOYMENT.md"
   [[ -f "$SHARED_DIR/.env" ]] || die "$SHARED_DIR/.env missing — the real production environment file lives there"
   mkdir -p "$RELEASES_DIR" "$SHARED_DIR/logs"
 }

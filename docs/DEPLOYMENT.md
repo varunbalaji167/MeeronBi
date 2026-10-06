@@ -1,251 +1,249 @@
-# Deployment — how this actually gets onto a server
+# Deployment
 
-Status: **executed and validated end-to-end** against a live DigitalOcean
-Droplet (first instance: `meeronbi-test.eikhoi.net`, a test/pilot
-deployment — substitute your own subdomain and credentials when repeating
-this for another instance). Every command below was run for real, in this
-order, and worked. This supersedes the earlier draft version of this file.
+How MeeronBi runs in production, how code gets there, and how to provision a
+new instance.
 
-Related: `docs/OPERATIONS.md` covers backup/restore policy — a separate,
-still-open decision. This file covers "how the app gets onto a server and
-stays running."
+Related: `docs/TESTING.md` (what CI verifies before anything ships),
+`docs/OPERATIONS.md` (backup and restore policy).
 
-## Architecture actually used
+## Overview
 
-- **Compute**: one DigitalOcean Droplet (Ubuntu 24.04 LTS), running the
-  Next.js app directly via `pm2` + an nginx reverse proxy. No control
-  panel (CloudPanel was tried and abandoned due to a reproducible
-  installer bug in that release — this is a plain, manually-configured
-  box).
-- **Database**: **DigitalOcean Managed MySQL** (MySQL 8.4, Standard
-  Edition) — not self-hosted on the Droplet. This follows
-  `docs/OPERATIONS.md`'s "do not self-host MySQL" guidance: the managed
-  service handles backups/PITR, and the app server only needs to run
-  Node.
-- **DNS/registrar**: `eikhoi.net`, registered at GoDaddy. DNS records
-  (A records) are managed directly in GoDaddy's DNS panel.
+| | |
+|---|---|
+| **Compute** | One DigitalOcean Droplet (Ubuntu 24.04 LTS), Next.js under `pm2`, nginx in front for TLS |
+| **Database** | DigitalOcean Managed MySQL 8.4 (Standard) — not self-hosted, per `docs/OPERATIONS.md` |
+| **DNS/TLS** | `eikhoi.net` at GoDaddy; Let's Encrypt via certbot |
+| **CI/CD** | GitHub Actions — `.github/workflows/ci.yml` gates, `deploy.yml` ships |
+| **Current instance** | `meeronbi-test.eikhoi.net` (pilot) |
 
-## 0. Prerequisites before starting
+Deployment is **continuous and automated**. A push to `main` that passes CI
+deploys itself; a release that fails its health check rolls back without
+intervention. Nothing is built or installed on the server by hand.
 
-- A DigitalOcean account with a Droplet already created:
-  - Ubuntu 24.04 LTS
-  - Region: pick the one closest to your users (this instance used
-    Bangalore / BLR1)
-  - Size: **2 vCPU / 4GB RAM minimum.** A 1 vCPU/2GB box is not enough —
-    it was tried first and ran out of memory running even basic services.
-  - SSH-key-only authentication (see §1) — never password auth.
-- A DigitalOcean Managed MySQL database cluster already created:
-  - Engine: **MySQL 8.4** (confirm this explicitly — the product also
-    offers Postgres/MongoDB/others)
-  - Edition: **Standard** (not Advanced — Standard is correct for
-    single-facility/pilot scale; Advanced is for real multi-region HA,
-    not needed yet)
-  - Same region as the Droplet (matters for latency and for using the
-    private network path below)
-  - A **dedicated database and user created for this app** (do not use
-    the cluster's default `defaultdb`/admin user) — see §4.
+## Deploying
 
-## 1. SSH key setup
+### Normal deploy
 
-Generate a key pair on your own machine (never on the server, never
-shared as a private key):
+Merge to `main`. That is the whole procedure.
 
-```bash
-ssh-keygen -t ed25519 -C "<your-name>-meeronbi"
-```
-Accept the default file location. Get the public key:
-```bash
-cat ~/.ssh/id_ed25519.pub
-```
+CI runs (lint, typecheck, unit tests, migrations against a throwaway MySQL,
+production build, boot, smoke test, security scans). On success, `deploy.yml`
+deploys **the exact commit CI tested** — not whatever `main` has moved on to.
 
-Add that public key to the Droplet — either during Droplet creation
-(DigitalOcean's "Add SSH Key" step), or afterwards by appending it to
-`~/.ssh/authorized_keys` on the server (via DigitalOcean's web console if
-you don't yet have SSH access, or via an existing admin's session):
-```bash
-mkdir -p ~/.ssh
-echo "<the public key line>" >> ~/.ssh/authorized_keys
-chmod 700 ~/.ssh
-chmod 600 ~/.ssh/authorized_keys
-```
+Watch Actions → Deploy for `healthy after Ns` and `Smoke: 21 passed, 0 failed`.
 
-Connect:
-```bash
-ssh root@<droplet-ip>
-```
+### Rollback
 
-**Harden it once key access is confirmed working:** check whether
-password auth is still enabled over SSH (it may be, if a root password
-was ever set via DigitalOcean's "Reset Root Password" feature) and
-disable it:
-```bash
-sudo grep -i "^PasswordAuthentication" /etc/ssh/sshd_config /etc/ssh/sshd_config.d/*.conf 2>/dev/null
-# if it shows "yes" or nothing:
-echo "PasswordAuthentication no" | sudo tee /etc/ssh/sshd_config.d/99-disable-password-auth.conf
-sudo systemctl restart ssh
-```
-Confirm your key-based login still works in a **second** terminal before
-closing the first, so you don't lock yourself out.
+Actions → **Deploy** → **Run workflow** → tick *"Ignore 'sha' and flip the
+server back to the previous release"*.
 
-## 2. Base server setup
+This flips a symlink and reloads pm2 — seconds, no rebuild. Deploying
+*forward* again rebuilds, so only the rollback direction is instant.
+
+Rollback also happens automatically whenever a new release fails its health
+check or smoke test.
+
+> **Rollback restores code, not the database.** `prisma migrate deploy` runs
+> before the symlink flip and Prisma has no down-migrations, so a rolled-back
+> release runs against the newer schema. Every migration must be
+> backward-compatible with the release before it: add columns rather than
+> dropping or renaming them in the same deploy that starts using them, and
+> split a destructive change across two deploys (stop using it, ship, then
+> drop it).
+
+### Deploying a specific commit
+
+Actions → Deploy → Run workflow → enter the SHA. It must already have passed
+CI.
+
+### From the server, if GitHub Actions is unavailable
 
 ```bash
-sudo apt update && sudo apt upgrade -y
-
-# Firewall — SSH, HTTP, HTTPS only
-sudo ufw allow 22/tcp
-sudo ufw allow 80/tcp
-sudo ufw allow 443/tcp
-sudo ufw enable
-
-# Node.js 20.x (matches CI's node-version in .github/workflows/ci.yml)
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt-get install -y nodejs
-
-# nginx (reverse proxy / TLS termination) + certbot (free HTTPS cert)
-sudo apt-get install -y nginx certbot python3-certbot-nginx
-
-# pm2 (keeps `next start` alive, restarts on crash and on reboot)
-sudo npm install -g pm2
+sudo -iu deploy
+bash /var/www/meeronbi/current/scripts/deploy.sh <git-sha>
+bash /var/www/meeronbi/current/scripts/deploy.sh --rollback
 ```
 
-If `apt update`/`upgrade` installs a new kernel, reboot before continuing
-(`sudo reboot`, then reconnect via SSH) rather than leaving it pending.
+## Server layout
 
-## 3. Give the server access to the private GitHub repo
+Everything under `/var/www/meeronbi` is owned by the `deploy` user. The app
+runs under **deploy's** pm2 daemon — pm2 is per-user, and root's daemon is
+deliberately empty.
 
-The repo is private, so the server needs its own **read-only deploy key**
-— not a personal account's credentials, and not write access.
+```
+/var/www/meeronbi/
+  repo/              bare git mirror, fetched with deploy's read-only key
+  releases/<sha>/    one extracted, built release (last 5 kept)
+  shared/.env        the one real .env, symlinked into every release
+  shared/logs/       pm2 logs, so they survive release pruning
+  current -> releases/<sha>     what pm2 serves
+```
+
+`scripts/deploy.sh` builds a new release in full while the previous one keeps
+serving, then flips `current` and reloads pm2. The flip is a `rename(2)` over
+the existing symlink, so there is no moment where `current` is missing.
+
+pm2 runs in fork mode, so a reload is a restart: expect a **1–2 second blip**,
+not zero downtime.
+
+## Provisioning a new instance
+
+For a new facility or a replacement box. Takes about an hour, mostly waiting.
+
+### 1. Prerequisites
+
+**Droplet** — Ubuntu 24.04 LTS, region closest to users, SSH-key-only auth.
+**2 vCPU / 4 GB RAM.** A 1 vCPU / 2 GB box is not enough. If RAM is tight, add
+swap before the first build:
 
 ```bash
-ssh-keygen -t ed25519 -C "meeronbi-droplet" -f ~/.ssh/meeronbi_deploy_key
-cat ~/.ssh/meeronbi_deploy_key.pub
+fallocate -l 2G /swapfile && chmod 600 /swapfile
+mkswap /swapfile && swapon /swapfile
+echo '/swapfile none swap sw 0 0' >> /etc/fstab
 ```
 
-Add that public key on GitHub: repo → **Settings → Deploy keys → Add
-deploy key** → paste it → **leave "Allow write access" unchecked.**
+**Managed MySQL** — engine MySQL 8.4, **Standard** edition (Advanced is for
+multi-region HA, not needed at this scale), same region as the Droplet.
 
-Tell the server's SSH client to use this specific key for GitHub:
+### 2. Base server
+
+```bash
+apt update && apt upgrade -y        # reboot if a new kernel lands
+
+ufw allow 22/tcp && ufw allow 80/tcp && ufw allow 443/tcp && ufw enable
+
+curl -fsSL https://deb.nodesource.com/setup_20.x | bash -   # matches CI
+apt-get install -y nodejs nginx certbot python3-certbot-nginx
+npm install -g pm2
+```
+
+Confirm password auth over SSH is off — it may be on if a root password was
+ever set via the provider's console:
+
+```bash
+grep -i "^PasswordAuthentication" /etc/ssh/sshd_config /etc/ssh/sshd_config.d/*.conf
+echo "PasswordAuthentication no" > /etc/ssh/sshd_config.d/99-disable-password-auth.conf
+systemctl restart ssh
+```
+
+Verify key login still works in a **second** terminal before closing the first.
+
+### 3. Deploy user and GitHub access
+
+```bash
+adduser --disabled-password --gecos "" deploy
+install -d -m 700 -o deploy -g deploy /home/deploy/.ssh
+mkdir -p /var/www/meeronbi && chown -R deploy:deploy /var/www/meeronbi
+```
+
+Generate the repo deploy key **as deploy** — `sudo -iu deploy` is a login
+shell, which plain `sudo -u deploy` is not, so `HOME` resolves to
+`/home/deploy` and ssh/pm2 look in the right place:
+
+```bash
+sudo -iu deploy
+ssh-keygen -t ed25519 -C "meeronbi-deploy" -f ~/.ssh/github_deploy -N ""
+cat ~/.ssh/github_deploy.pub
+```
+
+Add that public key under repo → **Settings → Deploy keys**, with *Allow write
+access* **unchecked**. Then, still as deploy:
+
 ```bash
 cat >> ~/.ssh/config << 'EOF'
 
 Host github.com
-  IdentityFile ~/.ssh/meeronbi_deploy_key
+  IdentityFile ~/.ssh/github_deploy
   IdentitiesOnly yes
 EOF
+chmod 600 ~/.ssh/config
+
+ssh -T git@github.com    # must print "Hi <owner>/<repo>!"
 ```
 
-Verify, then clone:
+Do not continue until that authenticates.
+
+### 4. Database
+
+In the MySQL cluster's **Users & Databases**, create a dedicated database and
+user (`meeronbi_db` / `meeronbi_db_user`) — do not reuse the cluster's
+`defaultdb` or admin user.
+
+Under **Settings → Trusted Sources**, add the Droplet. Managed databases
+reject all connections, including from your own infrastructure, until this is
+set.
+
+Install the cluster's CA certificate root-owned, outside the app directory:
+
 ```bash
-ssh -T git@github.com   # expect: "Hi <repo>! ... does not provide shell access."
-git clone git@github.com:<owner>/<repo>.git /var/www/meeronbi
-```
-
-## 4. Database — dedicated user, private connection string
-
-On the Managed MySQL cluster, under **Users & Databases**, create (don't
-reuse the default admin/`defaultdb`):
-- A database, e.g. `meeronbi_db`
-- A user scoped to it, e.g. `meeronbi_db_user`
-
-Under **Settings → Trusted Sources**, add the Droplet explicitly —
-managed databases reject all connections, even from your own
-infrastructure, until this is done.
-
-Under **Connection Details**, copy the **Private network** connection
-string (same region as the Droplet routes over DigitalOcean's internal
-network — faster and doesn't touch the public internet).
-
-Download the cluster's **CA certificate** from the same page and install
-it root-owned, outside the app directory (public cert, but it must not be
-swappable):
-```bash
-# on your laptop
-scp ~/Downloads/ca-certificate.crt root@<server-ip>:/tmp/
-# on the server
 mkdir -p /etc/meeronbi
-mv /tmp/ca-certificate.crt /etc/meeronbi/ca-certificate.crt
+mv ca-certificate.crt /etc/meeronbi/ca-certificate.crt
 chmod 644 /etc/meeronbi/ca-certificate.crt
 ```
 
-Build the `DATABASE_URL` for Prisma from it. `ssl-mode` is a `mysql` CLI
-flag, not a Prisma option — Prisma needs `sslaccept`/`sslcert`:
-```
-mysql://meeronbi_db_user:<password>@private-<cluster-host>:25060/meeronbi_db?sslaccept=strict&sslcert=/etc/meeronbi/ca-certificate.crt
-```
+Build `DATABASE_URL` from the cluster's **private network** connection string.
+`ssl-mode` is a `mysql` CLI flag, not a Prisma option — Prisma needs
+`sslaccept`/`sslcert`:
 
-Never set `DATABASE_URL` (or `DATABASE_*`) in `/etc/environment` or a shell
-profile — process env silently overrides `.env`, and the app will connect
-to the wrong database. Check with `env | grep DATABASE` (must print
-nothing) and `pm2 env 0 | grep DATABASE`.
-
-Test the connection directly before touching the app:
-```bash
-sudo apt install -y mysql-client-core-8.0
-mysql -h private-<cluster-host> -P 25060 -u meeronbi_db_user -p meeronbi_db --ssl-mode=REQUIRED
+```
+mysql://meeronbi_db_user:<password>@private-<host>:25060/meeronbi_db?sslaccept=strict&sslcert=/etc/meeronbi/ca-certificate.crt
 ```
 
-## 5. Configure and build the app
+> Never set `DATABASE_URL` in `/etc/environment` or a shell profile. Process
+> env silently overrides `.env`, and the app will connect to the wrong
+> database. Verify with `env | grep DATABASE` (must print nothing).
+
+### 5. Environment file
 
 ```bash
-cd /var/www/meeronbi
-npm ci
-nano .env
+sudo -iu deploy
+mkdir -p /var/www/meeronbi/shared/logs /var/www/meeronbi/releases
+nano /var/www/meeronbi/shared/.env
+chmod 600 /var/www/meeronbi/shared/.env
 ```
 
-Fill in `.env` — every value here must be a real production value, not a
-placeholder from `.env.example`:
+`0600` matters — this file holds the database password and session secret.
 
 | Variable | Value |
 |---|---|
-| `DATABASE_URL` | The private connection string from §4 |
-| `NEXTAUTH_URL` | `https://` + the subdomain this instance serves, e.g. `https://meeronbi-test.eikhoi.net` |
-| `NEXTAUTH_SECRET` | Freshly generated: `openssl rand -base64 32` — never reused across instances |
-| `NEXT_PUBLIC_APP_ORIGIN` | Same subdomain, no protocol/trailing slash, e.g. `meeronbi-test.eikhoi.net` |
-| `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` | Real login + strong password for a real deployment; placeholders are acceptable only for a disposable test/mock instance |
-| `SEED_SUPER_ADMIN_EMAIL` / `SEED_SUPER_ADMIN_PASSWORD` | Same — this account has cross-facility access |
-| `SENTRY_DSN` | A real DSN from sentry.io once that project exists — blank is a safe no-op |
+| `DATABASE_URL` | Private connection string from *Database* above |
+| `NEXTAUTH_URL` | `https://` + this instance's domain |
+| `NEXTAUTH_SECRET` | `openssl rand -base64 32` — never reused across instances |
+| `NEXT_PUBLIC_APP_ORIGIN` | Same domain, no protocol or trailing slash |
+| `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` | Real credentials; placeholders only on a disposable instance |
+| `SEED_SUPER_ADMIN_EMAIL` / `SEED_SUPER_ADMIN_PASSWORD` | Same — this account crosses facility boundaries |
+| `SENTRY_DSN` | Real DSN, or blank (a safe no-op) |
 
-Build:
-```bash
-npx prisma generate
-npx prisma migrate deploy   # NOT `migrate dev` — non-interactive, safe to run unattended
-npm run build
-```
-
-**Seeding — only for a test/mock instance, never real production:**
-```bash
-npm run seed
-```
-This creates demo admin/super-admin/patient accounts with the shared
-password `testing@123` (and demo researcher accounts with
-`ResearcherDemo123!`). For a real deployment, skip this and create the
-first real admin account by hand instead (see `prisma/seed.ts` for the
-shape it expects).
-
-## 6. Run it, keep it running
+### 6. First release
 
 ```bash
-pm2 start npm --name meeronbi -- start
+sudo -iu deploy
+cd /var/www/meeronbi
+git clone --bare git@github.com:varunbalaji167/MeeronBi.git repo
+git -C repo show main:scripts/deploy.sh > ~/deploy-bootstrap.sh
+bash ~/deploy-bootstrap.sh "$(git -C repo rev-parse main)"
 pm2 save
-pm2 startup   # prints a systemctl command — copy and run exactly what it outputs
-pm2 save      # run once more after `pm2 startup` finishes, to be safe
+exit
+
+sudo -iu deploy pm2 startup    # run the line it prints, as root
 ```
 
-Verify locally before involving nginx/DNS at all:
-```bash
-curl http://localhost:3000/api/health
-```
+`deploy.sh` installs, generates the Prisma client, applies migrations, builds,
+flips the symlink, health-checks and smoke-tests. Allow 5–10 minutes.
 
-## 7. Reverse proxy
+**Seeding — disposable instances only.** `npm run seed` creates demo accounts
+with shared passwords (`testing@123`, `ResearcherDemo123!`). For a real
+deployment, skip it and create the first admin by hand; see `prisma/seed.ts`
+for the shape expected.
 
-```bash
-sudo nano /etc/nginx/sites-available/meeronbi
-```
+### 7. nginx, DNS, TLS
+
+`/etc/nginx/sites-available/meeronbi`:
+
 ```nginx
 server {
     listen 80;
-    server_name meeronbi-test.eikhoi.net;
+    server_name <subdomain>.eikhoi.net;
 
     location / {
         proxy_pass http://localhost:3000;
@@ -260,349 +258,147 @@ server {
     }
 }
 ```
-```bash
-sudo ln -s /etc/nginx/sites-available/meeronbi /etc/nginx/sites-enabled/
-sudo nginx -t && sudo systemctl reload nginx
-```
-
-The `X-Forwarded-For` header is what
-`src/server/http/rateLimit.ts`'s `getClientIp()` reads — without it, every
-request behind this proxy looks like it came from the same IP, silently
-breaking per-IP rate limiting.
-
-## 8. DNS
-
-In GoDaddy's DNS management for `eikhoi.net` (**Domains → DNS**): add an
-**A record** — host = the subdomain (e.g. `meeronbi-test`), value = the
-Droplet's public IPv4 address. Propagation is usually fast but can take
-longer; verify from the server itself once added:
-```bash
-dig +short <subdomain>.eikhoi.net @8.8.8.8
-```
-
-## 9. SSL
-
-Once DNS resolves:
-```bash
-sudo certbot --nginx -d meeronbi-test.eikhoi.net
-```
-Answer the prompts (email, terms). Certbot edits the nginx config
-automatically to add HTTPS and redirect HTTP → HTTPS, and schedules its
-own auto-renewal — nothing further to configure.
-
-## 10. Post-deploy checklist
-
-- [ ] `curl https://<subdomain>.eikhoi.net/api/health` → `{"status":"ok",...}`, 200
-- [ ] `curl -I http://<subdomain>.eikhoi.net` → redirects to `https://`
-- [ ] `curl -I https://<subdomain>.eikhoi.net/` → all five security
-      headers present (`X-Frame-Options`, `X-Content-Type-Options`,
-      `Referrer-Policy`, `Permissions-Policy`,
-      `Strict-Transport-Security`), no `X-Powered-By`
-- [ ] Log in via the browser at `/login` and confirm the dashboard loads
-- [ ] `SENTRY_DSN` set (or explicitly deferred)
-- [ ] Backups wired per `docs/OPERATIONS.md` (for a Managed MySQL
-      instance, this is largely already covered by the provider's own
-      automated backups/PITR — confirm the retention window, don't just
-      assume)
-- [ ] `.env` file permissions restricted and confirmed in `.gitignore`
-      (never committed)
-- [ ] For anything beyond a disposable test instance: demo seed
-      passwords (`testing@123`, `ResearcherDemo123!`) rotated or the
-      accounts removed entirely
-
-## 11. Updating the running app later
-
-**This is now automated — see §12 and §13.** Every push to `main` that
-passes CI deploys itself, health-checks the result, and rolls back if the
-new release doesn't come up. The manual sequence below is the fallback for
-when you're on the box and GitHub Actions isn't an option:
 
 ```bash
-# On the server, after the §12 restructure:
-bash /var/www/meeronbi/current/scripts/deploy.sh <git-sha>
-bash /var/www/meeronbi/current/scripts/deploy.sh --rollback
+ln -s /etc/nginx/sites-available/meeronbi /etc/nginx/sites-enabled/
+nginx -t && systemctl reload nginx
 ```
 
-## 12. One-time restructure to release directories
+> `X-Forwarded-For` is what `src/server/http/rateLimit.ts`'s `getClientIp()`
+> reads. Without it every request appears to come from the same IP, silently
+> disabling per-IP rate limiting.
 
-The original layout was a single `git clone` at `/var/www/meeronbi` that
-was pulled and rebuilt in place. That has two problems worth fixing before
-automating anything: a failed build leaves the live directory
-half-updated, and rolling back means a full rebuild (minutes) rather than
-a switch.
+DNS: add an **A record** in GoDaddy (**Domains → DNS**) pointing the subdomain
+at the Droplet's IPv4. Verify with `dig +short <subdomain>.eikhoi.net @8.8.8.8`.
 
-The layout `scripts/deploy.sh` expects instead:
-
-```
-/var/www/meeronbi/
-  repo/              bare git mirror, fetched with the read-only deploy key
-  releases/<sha>/    one extracted + built release
-  shared/.env        the one real .env, symlinked into every release
-  shared/logs/       pm2 logs, so they survive release pruning
-  current -> releases/<sha>
-```
-
-Each release is built in full while the previous one keeps serving. Only a
-release that builds gets the `current` symlink; only a release that then
-passes its health check and smoke test keeps it.
-
-Two things to know before starting, both of which bite silently otherwise:
-
-- **pm2 is per-user.** The existing app runs under *root's* pm2 daemon. The
-  new one runs under *deploy's*. Both will try to bind `:3000` unless root's
-  is explicitly retired, so step 4 below is not optional.
-- **`deploy.sh` runs `git fetch` as the deploy user**, so the GitHub deploy
-  key has to belong to that user. The §3 key lives in `/root/.ssh` and is
-  not reachable from `deploy`.
-
-Expect **three to five minutes of downtime** while the first release builds.
-Pick a quiet time. Everything is ordered so that the old deployment stays
-intact and bootable until the new one is proven.
-
-### 1. Create the deploy user
+TLS, once DNS resolves:
 
 ```bash
-sudo adduser --disabled-password --gecos "" deploy
-sudo install -d -m 700 -o deploy -g deploy /home/deploy/.ssh
-sudo chown -R deploy:deploy /var/www/meeronbi
+certbot --nginx -d <subdomain>.eikhoi.net
 ```
 
-### 2. Hand the GitHub deploy key over to that user
+Certbot adds HTTPS, redirects HTTP, and schedules its own renewal.
 
-§3 already created a read-only deploy key (`/root/.ssh/meeronbi_deploy_key`)
-and registered it on GitHub. Step 4 retires root from deploying altogether,
-so the job here is to **move that key to `deploy`**, not to register a
-second one. Nothing changes on GitHub's side.
+### 8. Go-live checklist
 
-```bash
-sudo cp /root/.ssh/meeronbi_deploy_key /home/deploy/.ssh/github_deploy
-sudo chown deploy:deploy /home/deploy/.ssh/github_deploy
-sudo chmod 600 /home/deploy/.ssh/github_deploy
-```
+- [ ] `curl https://<domain>/api/health` → `{"status":"ok","checks":{"db":"ok"}}`
+- [ ] `curl -I http://<domain>` redirects to `https://`
+- [ ] All five security headers present, no `X-Powered-By`
+- [ ] Browser login at `/login` reaches the dashboard
+- [ ] `sudo pm2 list` is empty (app runs under `deploy`, not root)
+- [ ] `shared/.env` is `0600`
+- [ ] Demo seed passwords rotated or demo accounts removed
+- [ ] `SENTRY_DSN` set, or deferred deliberately
+- [ ] Backup retention confirmed per `docs/OPERATIONS.md` — the provider's
+      automated backups/PITR cover most of this; confirm the window rather
+      than assuming it
 
-> If that key is gone, generate a fresh one as `deploy`
-> (`ssh-keygen -t ed25519 -f ~/.ssh/github_deploy -N ""`), add the resulting
-> `.pub` under repo → **Settings → Deploy keys**, and leave *Allow write
-> access* unchecked.
+## Continuous deployment
 
-Now point the deploy user's ssh client at it. Use `sudo -iu deploy` — a
-**login** shell — rather than `sudo -u deploy`: plain `sudo -u` does not
-reliably reset `HOME`, so `ssh` and `pm2` would look in `/root/.ssh` and
-`/root/.pm2` while running as `deploy`, failing with a permission error
-that points nowhere useful.
+`.github/workflows/deploy.yml` triggers on CI completing successfully on
+`main`. It uses `workflow_run`, so the version of the workflow that executes
+is always the one on the default branch — a pull request cannot modify the
+deploy steps or reach the deploy secrets.
 
-```bash
-sudo -iu deploy          # become deploy; stay here through step 3
-```
-
-Everything in this block runs **as deploy**:
-
-```bash
-cat >> ~/.ssh/config << 'EOF'
-
-Host github.com
-  IdentityFile ~/.ssh/github_deploy
-  IdentitiesOnly yes
-EOF
-chmod 600 ~/.ssh/config
-
-# Must print "Hi varunbalaji167/MeeronBi! You've successfully authenticated"
-# before continuing. Anything else means step 3's clone will fail.
-ssh -T git@github.com
-```
-
-Once §12 is finished and deploys are working, remove root's now-unused
-copy (`sudo rm /root/.ssh/meeronbi_deploy_key*`) and drop the `Host
-github.com` block from `/root/.ssh/config`, so exactly one account can
-pull this repo.
-
-### 3. Build the new layout alongside the old one
-
-Still **as deploy**. Nothing here disturbs the running app — it only adds
-directories.
-
-```bash
-cd /var/www/meeronbi
-mkdir -p shared/logs releases
-cp .env shared/.env
-chmod 600 shared/.env
-git clone --bare git@github.com:varunbalaji167/MeeronBi.git repo
-
-exit                     # back to your own sudo-capable user
-```
-
-### 4. Retire root's pm2, hand over to deploy's
-
-This is where the app goes down. As your own sudo-capable user:
-
-```bash
-# Root's daemon: stop serving and stop coming back on reboot.
-sudo pm2 delete meeronbi || true
-sudo pm2 save --force
-sudo pm2 unstartup systemd || true
-```
-
-Then register deploy's own boot hook. `pm2 startup` prints a
-`sudo env PATH=... pm2 startup systemd -u deploy --hp /home/deploy` line —
-copy and run exactly what it outputs:
-
-```bash
-sudo -iu deploy pm2 startup
-```
-
-### 5. First release through the new path
-
-```bash
-sudo -iu deploy          # login shell again, for the same HOME reason
-```
-
-As deploy:
-
-```bash
-cd /var/www/meeronbi
-git -C repo show main:scripts/deploy.sh > ~/deploy-bootstrap.sh
-bash ~/deploy-bootstrap.sh "$(git -C repo rev-parse main)"
-pm2 save
-exit
-```
-
-The bootstrap copy lives in `~` rather than `/tmp` so it is owned by, and
-readable by, the user actually running it. Every later deploy pipes the
-script over SSH instead, so this file is needed only this once.
-
-**Verify all four before continuing:**
-
-```bash
-curl http://localhost:3000/api/health          # "status":"ok","db":"ok"
-readlink /var/www/meeronbi/current             # points into releases/
-sudo -iu deploy pm2 list                       # meeronbi online
-sudo pm2 list                                  # root's list: no meeronbi
-```
-
-If the build failed, the old deployment is still intact — recover with
-`sudo pm2 start npm --name meeronbi -- start` from `/var/www/meeronbi` and
-investigate before retrying.
-
-### 6. Only now, remove the old in-place checkout
-
-```bash
-cd /var/www/meeronbi
-sudo find . -maxdepth 1 -mindepth 1 \
-  ! -name shared ! -name releases ! -name repo ! -name current \
-  -exec rm -rf {} +
-curl http://localhost:3000/api/health          # still ok
-```
-
-**Migrations are not rolled back.** `prisma migrate deploy` runs before the
-symlink flip and Prisma has no down-migrations, so a rolled-back release
-runs against the newer schema. Every migration must be backward-compatible
-with the release before it: add columns rather than dropping or renaming
-them in the same deploy that starts using them, and split a destructive
-change across two deploys (stop using it, ship, then drop it).
-
-## 13. Continuous deployment from GitHub Actions
-
-`.github/workflows/deploy.yml` runs after `.github/workflows/ci.yml`
-succeeds on `main`. It deploys the exact commit CI tested — not whatever
-`main` has moved on to — by piping `scripts/deploy.sh` over SSH, so the
-server never holds a copy of the deploy script that can drift.
-
-### Server-side prerequisites
-
-§12 already created the `deploy` user, gave it its own GitHub deploy key,
-and moved pm2 under it. What remains is letting GitHub Actions log in as
-that user.
-
-Note these are **two different keys with two different jobs**: §12's
-`github_deploy` key lets the *server* pull from GitHub, while the key below
-lets *GitHub Actions* SSH into the server. Neither can substitute for the
-other.
-
-Generate a key pair **for CI specifically** (on your laptop, not the
-server), so it can be revoked without affecting your own access:
-
-```bash
-# On your laptop:
-ssh-keygen -t ed25519 -C "meeronbi-github-actions" -f ~/.ssh/meeronbi_ci
-cat ~/.ssh/meeronbi_ci.pub
-```
-
-`ssh-copy-id` will not work here — `deploy` was created with
-`--disabled-password`, so there is no password for it to authenticate with.
-Install the key through root instead:
-
-```bash
-# On the server, as a sudoer:
-sudo -u deploy tee -a /home/deploy/.ssh/authorized_keys <<< "<the public key line>"
-sudo -u deploy chmod 600 /home/deploy/.ssh/authorized_keys
-```
-
-Confirm from your laptop before going further — this exact command is what
-the workflow runs:
-
-```bash
-ssh -i ~/.ssh/meeronbi_ci -o BatchMode=yes deploy@<server-ip> "pm2 list"
-```
+`scripts/deploy.sh` is piped over SSH from the commit being deployed, so the
+server never holds a copy that can drift from the repo.
 
 ### Repository secrets
 
-In GitHub → **Settings → Secrets and variables → Actions**, add:
+Settings → Secrets and variables → **Actions**. All five are *secrets*, not
+variables — `deploy.yml` reads them via `secrets.*`, and a value added as a
+variable resolves to an empty string.
 
 | Secret | Value |
 |---|---|
-| `DEPLOY_SSH_KEY` | The full **private** key (`cat ~/.ssh/meeronbi_ci`), including the BEGIN/END lines |
-| `DEPLOY_HOST` | The server's IP or hostname |
+| `DEPLOY_SSH_KEY` | Private key for CI's SSH access, full file including BEGIN/END |
+| `DEPLOY_HOST` | Server IP |
 | `DEPLOY_USER` | `deploy` |
-| `DEPLOY_KNOWN_HOSTS` | Output of `ssh-keyscan -t ed25519 <server-ip>` |
-| `DEPLOY_PUBLIC_URL` | `https://<subdomain>.eikhoi.net` — optional; enables the external post-deploy check |
+| `DEPLOY_KNOWN_HOSTS` | `ssh-keyscan -t ed25519 <ip>` |
+| `DEPLOY_PUBLIC_URL` | `https://<domain>` — optional; enables the external post-deploy check |
 
-`DEPLOY_KNOWN_HOSTS` is not optional busywork: without a pinned host key
-the workflow would have to pass `StrictHostKeyChecking=no`, which accepts
-*any* host answering on that address and hands it the deploy key.
+> Two different keys do two different jobs: `~deploy/.ssh/github_deploy` lets
+> the **server pull from GitHub**; `DEPLOY_SSH_KEY` lets **GitHub Actions SSH
+> into the server**. Neither substitutes for the other.
 
-Note that **GitHub Environments and required-reviewer approval gates are
-not available for private repositories on the Free plan**, so these are
-plain repository secrets and the CI gate is what protects production. If
-you later want a human approving each release, either upgrade the plan or
-switch `deploy.yml` to `workflow_dispatch`-only.
+Generate CI's key on your laptop, not the server, so it is revocable
+independently:
+
+```bash
+ssh-keygen -t ed25519 -C "meeronbi-github-actions" -f ~/.ssh/meeronbi_ci
+```
+
+`ssh-copy-id` will not work — `deploy` has no password. Install it via root:
+
+```bash
+sudo -u deploy tee -a /home/deploy/.ssh/authorized_keys <<< "<public key line>"
+sudo -u deploy chmod 600 /home/deploy/.ssh/authorized_keys
+```
+
+Verify with the exact command the workflow runs:
+
+```bash
+ssh -i ~/.ssh/meeronbi_ci -o BatchMode=yes deploy@<ip> "pm2 list"
+```
+
+`DEPLOY_KNOWN_HOSTS` pins the host key so the workflow never needs
+`StrictHostKeyChecking=no`, which would hand the deploy key to anything
+answering on that address.
 
 ### What a deploy does
 
-1. CI passes on `main` (lint, typecheck, unit tests, secret scan, SAST,
-   dependency audit, and a full migrate + build + boot + smoke test).
-2. `deploy.sh` fetches the commit, extracts it to `releases/<sha>`, and
-   installs, generates Prisma, migrates, and builds — all while the
-   previous release is still serving.
-3. The `current` symlink flips and pm2 reloads.
-4. The new release must answer `/api/health` with `"status":"ok"` and
-   `"db":"ok"`, then pass `scripts/smoke.sh`.
-5. If either fails, the symlink flips back, pm2 reloads the previous
+1. CI passes on `main`.
+2. `deploy.sh` fetches the commit, extracts it to `releases/<sha>`, installs,
+   generates the Prisma client, applies migrations and builds — all while the
+   previous release keeps serving.
+3. `current` flips; pm2 reloads.
+4. The release must answer `/api/health` with `"status":"ok"` and `"db":"ok"`,
+   then pass `scripts/smoke.sh` (21 assertions: liveness, public pages, the
+   auth boundary, security headers).
+5. On failure of either, the symlink flips back, pm2 reloads the previous
    release, and the workflow fails.
 
-pm2 runs in fork mode, so the reload is a restart — expect a **one to two
-second blip**, not zero downtime. At single-facility scale that is the
-right trade for the simplicity.
+A build failure is a non-event for users — it happens before the flip.
 
-To roll back by hand: GitHub → **Actions → Deploy → Run workflow**, tick
-**rollback**. Or on the server, `bash current/scripts/deploy.sh --rollback`.
+## Operations
 
-## Known follow-ups from the first deployment
+```bash
+# Logs
+sudo -iu deploy pm2 logs meeronbi
+tail -f /var/www/meeronbi/shared/logs/error.log
 
-- **Next.js is pinned to 14.2.35, the final 14.x release.** There will be
-  no further 14.x security patches; `npm audit` reports open critical
-  advisories whose only fix is `next@16`. Each is individually assessed
-  and accepted, with an expiry date, in `.github/audit-allowlist.json` —
-  CI fails once those expire. The upgrade needs its own planned pass.
-- **A 4GB droplet building a release while serving the previous one is
-  tight.** If `npm run build` starts getting OOM-killed during a deploy,
-  add swap (`fallocate -l 2G /swapfile`, `mkswap`, `swapon`, and an
-  `/etc/fstab` entry) before resizing the box.
-- **DigitalOcean may rotate the DB CA certificate.** If connections
-  suddenly fail with a certificate error, re-download it (§4) and replace
+# Status, restart
+sudo -iu deploy pm2 list
+sudo -iu deploy pm2 restart meeronbi
+
+# What is currently deployed
+readlink /var/www/meeronbi/current
+ls -1t /var/www/meeronbi/releases
+
+# Probe a running instance (same script CI and deploy use)
+bash /var/www/meeronbi/current/scripts/smoke.sh http://127.0.0.1:3000
+```
+
+Changing an environment variable means editing `shared/.env` and restarting —
+it is shared across releases, so it survives deploys and rollbacks alike.
+Values baked into the client bundle at build time (`NEXT_PUBLIC_*`) need a
+redeploy, not a restart.
+
+## Known issues
+
+- **Next.js is pinned to 14.2.35, the final 14.x release.** No further 14.x
+  security patches will be published. Ten open advisories (two critical) have
+  no fix below `next@16`. Each is assessed against this app's configuration
+  and accepted in `.github/audit-allowlist.json`, where every entry **expires
+  2026-12-31** and then fails CI. The 14 → 16 upgrade needs its own planned
+  pass; see `docs/SCALING_PLAN.md`.
+- **Building while serving is memory-hungry.** A release builds alongside the
+  running one. On a 4 GB box keep swap configured; if `npm run build` is
+  OOM-killed mid-deploy, add swap before resizing.
+- **The DB CA certificate can be rotated by the provider.** If connections
+  suddenly fail with a certificate error, re-download it and replace
   `/etc/meeronbi/ca-certificate.crt`.
-- **CloudPanel was evaluated and abandoned** for this deployment due to a
-  reproducible Doctrine migration bug in CloudPanel 2.5.4 on Ubuntu 24.04
-  (`"no such table: site"`, independent of `DB_ENGINE`/`CLOUD` install
-  flags). The manual nginx/certbot/pm2 setup in this doc is the proven
-  path; don't re-attempt CloudPanel without a reason to expect a fixed
-  release.
+- **CloudPanel was evaluated and abandoned** — a reproducible Doctrine
+  migration bug in CloudPanel 2.5.4 on Ubuntu 24.04 (`"no such table: site"`,
+  independent of install flags). The manual nginx/certbot/pm2 setup here is
+  the proven path.

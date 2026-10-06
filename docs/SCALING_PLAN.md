@@ -70,7 +70,7 @@ full history, Semgrep SAST, and a dependency audit with an expiring
 allowlist). A green run on `main` deploys itself via
 `.github/workflows/deploy.yml` into an atomic release directory, with an
 automatic rollback if the new release fails its health check
-(`docs/DEPLOYMENT.md` §12–13).
+(`docs/DEPLOYMENT.md`).
 
 **Analytics** ships against this foundation:
 `/api/analytics/{fields,cohort,timeseries}` are admin- and
