@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
 import { toApiError, friendlyErrorMessage } from "@/lib/apiClient";
+import Skeleton from "@/components/ui/Skeleton";
 import Spinner from "@/components/ui/Spinner";
 import ErrorBanner from "@/components/ui/ErrorBanner";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
@@ -88,7 +89,17 @@ export default function ResearcherRequestsPage() {
     setRejectTarget(null);
   }
 
-  if (authLoading) return null;
+  if (authLoading) {
+    return (
+      <div>
+        <Skeleton className="h-7 w-72 max-w-full" />
+        <div className="panel mt-6 flex flex-col gap-3">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+        </div>
+      </div>
+    );
+  }
 
   if (!isSuperAdmin) {
     return (

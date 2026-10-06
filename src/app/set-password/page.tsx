@@ -2,6 +2,8 @@ import Link from "next/link";
 import { peekToken } from "@/server/auth/credentialTokens";
 import SetPasswordForm from "./SetPasswordForm";
 
+export const metadata = { title: "Set your password" };
+
 const ALLOWED_PURPOSES = ["ACCOUNT_INVITE", "PASSWORD_RESET"] as const;
 
 function ExpiredOrInvalidState({ heading, body, resendHref }: { heading: string; body: string; resendHref: string }) {

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Fraunces, Inter } from "next/font/google";
 import "./globals.css";
 import Providers from "./providers";
+import { appUrl } from "@/config/env";
 
 const display = Fraunces({
   subsets: ["latin"],
@@ -15,8 +16,11 @@ const body = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "MeeronBi — Antenatal Care Data Analytics",
+  metadataBase: new URL(appUrl),
+  title: { default: "MeeronBi — Antenatal Care Data Analytics", template: "%s · MeeronBi" },
   description: "Antenatal care data collection and analytics platform",
+  // Health-records app: noindex by default; only the marketing and public-trends pages opt back in.
+  robots: { index: false, follow: false },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

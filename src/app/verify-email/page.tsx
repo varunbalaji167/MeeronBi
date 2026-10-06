@@ -3,6 +3,7 @@
 import { useEffect, useState, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import Skeleton from "@/components/ui/Skeleton";
 import Spinner from "@/components/ui/Spinner";
 import { toApiError, friendlyErrorMessage } from "@/lib/apiClient";
 import { CheckCircle2, XCircle } from "lucide-react";
@@ -71,7 +72,16 @@ function VerifyEmailContent() {
 
 export default function VerifyEmailPage() {
   return (
-    <Suspense>
+    <Suspense
+      fallback={
+        <main className="flex min-h-screen flex-col items-center justify-center bg-paper px-6 py-16">
+          <div className="panel w-full max-w-md">
+            <Skeleton className="mx-auto h-8 w-8 rounded-full" />
+            <Skeleton className="mx-auto mt-4 h-7 w-56" />
+          </div>
+        </main>
+      }
+    >
       <VerifyEmailContent />
     </Suspense>
   );

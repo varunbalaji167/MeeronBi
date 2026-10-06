@@ -3,6 +3,8 @@ import { cookies } from "next/headers";
 import { verifyResearcherSignupToken, GOOGLE_RESEARCHER_SIGNUP_COOKIE } from "@/server/auth/googleResearcherSignupToken";
 import CompleteResearcherSignupForm from "./CompleteResearcherSignupForm";
 
+export const metadata = { title: "Complete researcher sign-up" };
+
 function ExpiredState() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-paper px-6 py-16">

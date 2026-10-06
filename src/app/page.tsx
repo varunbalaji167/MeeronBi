@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import CareTimeline from "@/components/patient/CareTimeline";
 import {
@@ -13,6 +14,11 @@ import {
   Sparkles,
   type LucideIcon,
 } from "lucide-react";
+
+export const metadata: Metadata = {
+  robots: { index: true, follow: true },
+  openGraph: { title: "MeeronBi", description: "Antenatal care data collection and analytics platform", type: "website" },
+};
 
 // No session or per-request data read here, so this page can be fully static.
 export const dynamic = "force-static";

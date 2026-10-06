@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import PatientPortalAccess from "./PatientPortalAccess";
 import ConfirmDialog from "../ui/ConfirmDialog";
-import Spinner from "../ui/Spinner";
+import Button from "../ui/Button";
 import { useTabForm } from "@/context/TabFormContext";
 import { useToast } from "@/context/ToastContext";
 import { toApiError, friendlyErrorMessage } from "@/lib/apiClient";
@@ -69,14 +69,14 @@ export default function PatientHeader({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => setShowAccess((v) => !v)}
-            className="btn-ghost border border-line text-xs"
+            icon={<KeyRound className="h-3.5 w-3.5" />}
           >
-            <KeyRound className="h-3.5 w-3.5" />
             {showAccess ? "Hide" : "Manage"} patient portal login
-          </button>
+          </Button>
           <button
             type="button"
             onClick={() => setConfirmDeleteOpen(true)}

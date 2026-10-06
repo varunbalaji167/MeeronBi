@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { AlertTriangle } from "lucide-react";
-import Spinner from "./Spinner";
+import Button from "./Button";
 
 interface Props {
   open: boolean;
@@ -80,24 +80,17 @@ export default function ConfirmDialog({
         </div>
         {children && <div className="mt-3">{children}</div>}
         <div className="mt-5 flex justify-end gap-2">
-          <button
+          <Button
             ref={cancelRef}
-            type="button"
-            className="btn-ghost border border-line"
+            variant="outline"
             onClick={onCancel}
-            disabled={loading}
+            disabledReason={loading ? "Please wait" : undefined}
           >
             {cancelLabel}
-          </button>
-          <button
-            type="button"
-            className={danger ? "btn-danger" : "btn-primary"}
-            onClick={onConfirm}
-            disabled={loading}
-          >
-            {loading && <Spinner className="h-4 w-4" light={!danger} />}
+          </Button>
+          <Button variant={danger ? "danger" : "primary"} onClick={onConfirm} loading={loading}>
             {confirmLabel}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

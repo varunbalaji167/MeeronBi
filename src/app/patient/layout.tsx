@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/server/auth/guards";
 import AppSidebar from "@/components/layout/AppSidebar";
 
+export const metadata = { title: "My record" };
+
 export const dynamic = "force-dynamic";
 
 export default async function PatientLayout({ children }: { children: React.ReactNode }) {

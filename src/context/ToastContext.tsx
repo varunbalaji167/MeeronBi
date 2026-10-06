@@ -1,18 +1,16 @@
 "use client";
 
-import { createContext, useCallback, useContext, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, AlertCircle, Info, X, type LucideIcon } from "lucide-react";
+import { enqueue, markExiting, remove, type Toast, type ToastAction, type ToastKind } from "@/lib/toastQueue";
 
-type ToastKind = "success" | "error" | "info";
-
-interface Toast {
-  id: number;
-  kind: ToastKind;
-  message: string;
+interface ToastOptions {
+  durationMs?: number;
+  action?: ToastAction;
 }
 
 interface ToastContextValue {
-  showToast: (message: string, kind?: ToastKind) => void;
+  showToast: (message: string, kind?: ToastKind, opts?: ToastOptions) => void;
 }
 
 const ToastContext = createContext<ToastContextValue>({
@@ -37,27 +35,78 @@ const KIND_ICON_COLOR: Record<ToastKind, string> = {
   info: "text-gold-500",
 };
 
-const AUTO_DISMISS_MS = 4200;
+const DURATION_MS: Record<ToastKind, number> = {
+  success: 4200,
+  info: 5000,
+  error: 12000,
+};
+
+const EXIT_MS = 160;
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
+  // The ref is the source of truth so timers and the queue update synchronously, outside React updaters.
+  const toastsRef = useRef<Toast[]>([]);
   const counter = useRef(0);
+  const timers = useRef(new Map<number, ReturnType<typeof setTimeout>>());
 
-  const dismiss = useCallback((id: number) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id));
+  const commit = useCallback((next: Toast[]) => {
+    toastsRef.current = next;
+    setToasts(next);
   }, []);
 
-  const showToast = useCallback(
-    (message: string, kind: ToastKind = "info") => {
-      const id = ++counter.current;
-      setToasts((prev) => [...prev, { id, kind, message }]);
-      setTimeout(() => dismiss(id), AUTO_DISMISS_MS);
+  const clearTimer = useCallback((id: number) => {
+    const t = timers.current.get(id);
+    if (t !== undefined) clearTimeout(t);
+    timers.current.delete(id);
+  }, []);
+
+  const dismiss = useCallback(
+    (id: number) => {
+      clearTimer(id);
+      if (!toastsRef.current.some((t) => t.id === id && !t.exiting)) return;
+      commit(markExiting(toastsRef.current, id));
+      timers.current.set(
+        id,
+        setTimeout(() => {
+          timers.current.delete(id);
+          commit(remove(toastsRef.current, id));
+        }, EXIT_MS)
+      );
     },
-    [dismiss]
+    [clearTimer, commit]
   );
 
+  const showToast = useCallback(
+    (message: string, kind: ToastKind = "info", opts?: ToastOptions) => {
+      const result = enqueue(toastsRef.current, { id: ++counter.current, kind, message, action: opts?.action });
+      result.dropped.forEach(clearTimer);
+      commit(result.queue);
+
+      clearTimer(result.id);
+      // An action toast never auto-dismisses: offering "Retry" then pulling it is worse than no action.
+      if (!opts?.action) {
+        timers.current.set(
+          result.id,
+          setTimeout(() => dismiss(result.id), opts?.durationMs ?? DURATION_MS[kind])
+        );
+      }
+    },
+    [clearTimer, commit, dismiss]
+  );
+
+  useEffect(() => {
+    const pending = timers.current;
+    return () => {
+      pending.forEach(clearTimeout);
+      pending.clear();
+    };
+  }, []);
+
+  const value = useMemo(() => ({ showToast }), [showToast]);
+
   return (
-    <ToastContext.Provider value={{ showToast }}>
+    <ToastContext.Provider value={value}>
       {children}
       {/* Top-center to avoid colliding with DynamicForm's sticky bottom action bar. */}
       <div
@@ -70,11 +119,28 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
           return (
             <div
               key={t.id}
-              role="status"
-              className={`animate-toast-in pointer-events-auto flex w-full max-w-sm items-start gap-2.5 rounded-lg border px-4 py-3 pr-2 text-sm shadow-panel ${KIND_STYLES[t.kind]}`}
+              role={t.kind === "error" ? "alert" : "status"}
+              className={`${t.exiting ? "animate-toast-out" : "animate-toast-in"} pointer-events-auto flex w-full max-w-sm items-start gap-2.5 rounded-lg border px-4 py-3 pr-2 text-sm shadow-panel ${KIND_STYLES[t.kind]}`}
             >
               <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${KIND_ICON_COLOR[t.kind]}`} />
               <span className="flex-1">{t.message}</span>
+              {t.repeat > 1 && (
+                <span className="mt-0.5 shrink-0 rounded-full bg-paper px-1.5 text-xs font-medium text-ink-soft">
+                  ×{t.repeat}
+                </span>
+              )}
+              {t.action && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    t.action!.onClick();
+                    dismiss(t.id);
+                  }}
+                  className="min-h-[44px] shrink-0 rounded px-2 text-sm font-medium text-brand-700 hover:bg-paper"
+                >
+                  {t.action.label}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => dismiss(t.id)}

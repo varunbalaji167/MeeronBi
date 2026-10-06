@@ -34,6 +34,20 @@
   animation: toast-in 0.18s ease-out;
 }
 
+@keyframes toast-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+.animate-toast-out {
+  animation: toast-out 0.16s ease-in forwards;
+}
+
 @keyframes pop-in {
   from {
     opacity: 0;
@@ -76,23 +90,30 @@
   }
 
   /* ---------- buttons ---------- */
+  /* Mirror of components/ui/Button.tsx. Change Button, then mirror here. Delete when `grep -r "btn-" src` is empty. */
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-1.5 rounded-md bg-brand-500 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors;
-    @apply hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-1.5 rounded-md font-medium transition-colors;
+    @apply bg-brand-500 text-white shadow-sm hover:bg-brand-600;
+    @apply px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50;
   }
   .btn-secondary {
-    @apply inline-flex items-center justify-center gap-1.5 rounded-md border border-brand-200 bg-brand-50 px-4 py-2 text-sm font-medium text-brand-700 shadow-sm transition-colors;
-    @apply hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-1.5 rounded-md font-medium transition-colors;
+    @apply border border-brand-200 bg-brand-50 text-brand-700 shadow-sm hover:bg-brand-100;
+    @apply px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50;
   }
   .btn-danger {
-    @apply inline-flex items-center justify-center gap-1.5 rounded-md border border-rose-200 bg-white px-4 py-2 text-sm font-medium text-rose-600 shadow-sm transition-colors;
-    @apply hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-1.5 rounded-md font-medium transition-colors;
+    @apply border border-rose-200 bg-white text-rose-600 shadow-sm hover:bg-rose-50;
+    @apply px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50;
   }
   .btn-ghost {
-    @apply inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-ink-soft transition-colors hover:bg-paper hover:text-ink;
+    @apply inline-flex items-center justify-center gap-1.5 rounded-md font-medium transition-colors;
+    @apply text-ink-soft hover:bg-paper hover:text-ink;
+    @apply px-3 py-1.5 text-sm;
   }
 
   /* ---------- surfaces ---------- */
+  /* Mirror of components/ui/Card.tsx. */
   .panel {
     @apply rounded-lg border border-line bg-white p-5 shadow-panel;
   }
@@ -109,6 +130,7 @@
   }
 
   /* ---------- status pills ---------- */
+  /* Mirror of components/ui/Badge.tsx. */
   .badge-draft {
     @apply inline-flex items-center gap-1 rounded-full bg-gold-50 px-2.5 py-0.5 text-xs font-medium text-gold-600;
   }

@@ -123,12 +123,16 @@ echo
 echo "Public surfaces render"
 expect_status /login 200 "/login renders"
 expect_status /public/trends 200 "/public/trends renders"
+expect_body "Registered Patients" "/public/trends server-renders its stats, not an empty shell"
 expect_status /researcher-access 200 "/researcher-access renders"
 expect_status /forgot-password 200 "/forgot-password renders"
 expect_status /set-password 200 "/set-password renders"
 expect_status /verify-email 200 "/verify-email renders"
 expect_status /api/public/trends 200 "/api/public/trends responds"
 expect_status /this-route-does-not-exist 404 "unknown route 404s cleanly"
+# Status alone passes for Next's unstyled default 404 too; this phrase exists only in not-found.tsx.
+expect_body "Page not found" "unknown route renders the branded 404"
+expect_status /icon.svg 200 "/icon.svg favicon is served"
 echo
 
 # --- Password reset request: no account enumeration -----------------------
