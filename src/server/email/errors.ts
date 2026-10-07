@@ -7,10 +7,10 @@ export const EMAIL_ERROR = {
   PAYLOAD_INVALID: "EMAIL.PAYLOAD_INVALID",
 } as const;
 
-/** SMTP is required (production) but no SMTP_HOST is configured. */
+/** Resend is required (production) but no RESEND_API_KEY is configured. */
 export function emailTransportUnconfiguredError(): AppError {
   return new AppError(
-    "Email transport is not configured — set SMTP_HOST and related env vars.",
+    "Email transport is not configured — set RESEND_API_KEY and EMAIL_FROM.",
     500,
     "INTERNAL_ERROR",
     undefined,

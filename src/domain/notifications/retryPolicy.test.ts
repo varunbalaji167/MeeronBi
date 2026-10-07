@@ -9,7 +9,7 @@ describe("nextAttemptDelayMs", () => {
     expect(delays[3]!).toBeGreaterThanOrEqual(delays[2]!);
   });
 
-  it("is capped at 30 minutes so a dead SMTP host doesn't push retries days out", () => {
+  it("is capped at 30 minutes so a persistent failure doesn't push retries days out", () => {
     expect(nextAttemptDelayMs(10)).toBe(30 * 60_000);
     expect(nextAttemptDelayMs(100)).toBe(30 * 60_000);
   });

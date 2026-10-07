@@ -213,8 +213,8 @@ chmod 600 /var/www/meeronbi/shared/.env
 | `NEXT_PUBLIC_APP_ORIGIN` | Same domain, no protocol or trailing slash |
 | `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` | Real credentials; placeholders only on a disposable instance |
 | `SEED_SUPER_ADMIN_EMAIL` / `SEED_SUPER_ADMIN_PASSWORD` | Same — this account crosses facility boundaries |
-| `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_USER` / `SMTP_PASSWORD` | Outbound mail transport. Leaving `SMTP_HOST` blank makes the worker log every email to its own stdout instead of sending — fine for a disposable instance, not for production. |
-| `EMAIL_FROM` | `"From"` header for outbound mail, e.g. `MeeronBi <no-reply@yourdomain>` |
+| `RESEND_API_KEY` | API key from the [Resend](https://resend.com) dashboard. Leaving it blank makes the worker log every email to its own stdout instead of sending — fine for a disposable instance, not for production. Outbound SMTP ports are blocked by default on most cloud providers (DigitalOcean included) and getting that lifted per-droplet isn't guaranteed, which is why email goes over Resend's HTTPS API instead of SMTP. |
+| `EMAIL_FROM` | `"From"` header for outbound mail, e.g. `MeeronBi <no-reply@yourdomain>` — the domain must be verified in the Resend dashboard first, or sends will fail |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth 2.0 client credentials. Leaving either blank disables Google sign-in entirely — the buttons just don't render, credentials login is unaffected. |
 | `SENTRY_DSN` | Real DSN, or blank (a safe no-op) |
 
