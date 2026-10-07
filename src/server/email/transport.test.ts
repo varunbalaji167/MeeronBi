@@ -9,8 +9,8 @@ describe("getMailer", () => {
     vi.resetModules();
   });
 
-  it("returns the console transport and does not throw when SMTP_HOST is unset outside production", async () => {
-    delete process.env.SMTP_HOST;
+  it("returns the console transport and does not throw when RESEND_API_KEY is unset outside production", async () => {
+    delete process.env.RESEND_API_KEY;
     vi.stubEnv("NODE_ENV", "development");
     vi.resetModules();
 
@@ -19,8 +19,8 @@ describe("getMailer", () => {
     await expect(getMailer().send({ to: "a@b.com", subject: "s", text: "t", html: "<p>t</p>" })).resolves.toBeUndefined();
   });
 
-  it("throws the typed error when SMTP_HOST is unset in production", async () => {
-    delete process.env.SMTP_HOST;
+  it("throws the typed error when RESEND_API_KEY is unset in production", async () => {
+    delete process.env.RESEND_API_KEY;
     vi.stubEnv("NODE_ENV", "production");
     vi.resetModules();
 

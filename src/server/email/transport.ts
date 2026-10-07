@@ -1,4 +1,3 @@
-import nodemailer from "nodemailer";
 import { emailConfig } from "@/config/env";
 import { emailTransportUnconfiguredError } from "@/server/email/errors";
 
@@ -6,26 +5,36 @@ export interface Mailer {
   send(msg: { to: string; subject: string; text: string; html: string }): Promise<void>;
 }
 
-class SmtpMailer implements Mailer {
-  private transport: ReturnType<typeof nodemailer.createTransport>;
+// Plain fetch against Resend's REST API — one HTTP call, no SDK dependency to
+// track. Resend sends over HTTPS, sidestepping the outbound SMTP port
+// blocking that cloud providers (DigitalOcean included) impose by default.
+class ResendMailer implements Mailer {
+  private apiKey: string;
   private from: string;
 
   constructor(config: NonNullable<typeof emailConfig>) {
+    this.apiKey = config.apiKey;
     this.from = config.from;
-    this.transport = nodemailer.createTransport({
-      host: config.host,
-      port: config.port,
-      secure: config.secure,
-      auth: config.user ? { user: config.user, pass: config.password } : undefined,
-    });
   }
 
   async send(msg: { to: string; subject: string; text: string; html: string }): Promise<void> {
-    await this.transport.sendMail({ from: this.from, to: msg.to, subject: msg.subject, text: msg.text, html: msg.html });
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${this.apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ from: this.from, to: msg.to, subject: msg.subject, text: msg.text, html: msg.html }),
+    });
+
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(`Resend send failed (${res.status}): ${body}`);
+    }
   }
 }
 
-// Logs the full message including any URL in it, so local dev needs no SMTP account at all.
+// Logs the full message including any URL in it, so local dev needs no Resend account at all.
 class ConsoleMailer implements Mailer {
   async send(msg: { to: string; subject: string; text: string; html: string }): Promise<void> {
     console.log(`[email:console] to=${msg.to} subject=${JSON.stringify(msg.subject)}\n${msg.text}`);
@@ -39,7 +48,7 @@ export function getMailer(): Mailer {
   if (mailer) return mailer;
 
   if (emailConfig) {
-    mailer = new SmtpMailer(emailConfig);
+    mailer = new ResendMailer(emailConfig);
   } else if (process.env.NODE_ENV !== "production") {
     mailer = new ConsoleMailer();
   } else {

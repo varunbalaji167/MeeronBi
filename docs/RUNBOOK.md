@@ -237,8 +237,8 @@ sudo -iu deploy pm2 logs meeronbi-email-worker --lines 100
 ```
 
 - **Worker won't boot / exits immediately** — `assertEmailConfigured()` throws
-  if `SMTP_HOST` isn't set in production. Confirm `shared/.env` has the full
-  `SMTP_*` block, then `pm2 restart meeronbi-email-worker`.
+  if `RESEND_API_KEY` isn't set in production. Confirm `shared/.env` has both
+  `RESEND_API_KEY` and `EMAIL_FROM`, then `pm2 restart meeronbi-email-worker`.
 - **Worker is up, but mail never arrives, and `email_outbox` rows stay
   `SENT` with no real delivery** — the worker only reads `.env` at process
   start (`scripts/email-worker.ts` imports `dotenv/config` explicitly, since
@@ -246,9 +246,14 @@ sudo -iu deploy pm2 logs meeronbi-email-worker --lines 100
   `shared/.env` requires restarting the worker, not just the main app:
   `pm2 restart meeronbi-email-worker`.
 - **A specific row is stuck `FAILED`** — check its `lastError` column
-  (`npx prisma studio`, `email_outbox` table) for the SMTP rejection reason.
-- **`wrong version number` SSL error** — a `secure`/port mismatch (port `587`
-  wants `SMTP_SECURE="false"` for STARTTLS; port `465` wants `"true"`).
+  (`npx prisma studio`, `email_outbox` table) for Resend's rejection reason
+  (`transport.ts` includes the response body in the thrown error).
+- **Resend returns 401/403** — the API key is wrong, revoked, or `EMAIL_FROM`
+  uses a domain that isn't verified in the Resend dashboard yet.
+- Outbound delivery goes over HTTPS (port 443), not SMTP — this is
+  deliberate: DigitalOcean (and most cloud providers) block outbound SMTP
+  ports by default, and getting that lifted per-droplet isn't guaranteed.
+  An HTTPS-based provider has no such port to block.
 
 ---
 

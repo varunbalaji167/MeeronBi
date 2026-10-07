@@ -5,13 +5,7 @@ import { z } from "zod";
 import { emailTransportUnconfiguredError } from "@/server/email/errors";
 
 const emailSchema = z.object({
-  host: z.string().min(1),
-  port: z.coerce.number().int().positive(),
-  // Not z.coerce.boolean(): Boolean("false") is true in JS, which silently forced every
-  // SMTP_SECURE="false" to `true` and broke STARTTLS on port 587.
-  secure: z.union([z.boolean(), z.string()]).transform((v) => (typeof v === "boolean" ? v : v === "true")),
-  user: z.string().optional(),
-  password: z.string().optional(),
+  apiKey: z.string().min(1),
   from: z.string().min(1),
 });
 
@@ -23,14 +17,10 @@ const googleSchema = z.object({
 export type EmailConfig = z.infer<typeof emailSchema>;
 export type GoogleConfig = z.infer<typeof googleSchema>;
 
-// null means SMTP_HOST is unset — dev falls back to console transport, production must throw.
-export const emailConfig: EmailConfig | null = process.env.SMTP_HOST
+// null means RESEND_API_KEY is unset — dev falls back to console transport, production must throw.
+export const emailConfig: EmailConfig | null = process.env.RESEND_API_KEY
   ? emailSchema.parse({
-      host: process.env.SMTP_HOST,
-      port: process.env.SMTP_PORT ?? 587,
-      secure: process.env.SMTP_SECURE ?? false,
-      user: process.env.SMTP_USER,
-      password: process.env.SMTP_PASSWORD,
+      apiKey: process.env.RESEND_API_KEY,
       from: process.env.EMAIL_FROM ?? "MeeronBi <no-reply@meeronbi.org>",
     })
   : null;

@@ -85,14 +85,14 @@ src/
     index.ts               Top-level barrel re-exporting all of the above
 
   config/
-    env.ts                  Zod-parsed SMTP/Google env (emailConfig/googleConfig are null when unset)
+    env.ts                  Zod-parsed Resend/Google env (emailConfig/googleConfig are null when unset)
 
   server/                 Server-only: DB, auth, business services
     db/prisma.ts            PrismaClient singleton
     http/withApiErrorHandling.ts  Wraps every route handler so thrown errors become valid JSON, never an empty body
     email/
       outbox.ts               email_outbox CRUD — enqueue inside a caller's transaction, claim/mark for the worker
-      transport.ts            getMailer(): real SMTP, or a console transport when SMTP_HOST is unset
+      transport.ts            getMailer(): real send via Resend's HTTPS API, or a console transport when RESEND_API_KEY is unset
     auth/
       authOptions.ts         NextAuth config (providers, session/jwt callbacks)
       guards.ts              Session guards per role, plus requireAdminSessionForPatient/assertPatientRecordAccessible — facility-scoped, see below
