@@ -5,7 +5,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import SignOutButton from "./SignOutButton";
-import { Menu, X, Users, BarChart3, FileHeart, ShieldCheck, LineChart, Building2, type LucideIcon } from "lucide-react";
+import { GrowthRings } from "@/components/ui/decor";
+import { Menu, X, Users, BarChart3, FileHeart, ShieldCheck, LineChart, Building2, Heart, type LucideIcon } from "lucide-react";
 
 interface NavItem {
   href: string;
@@ -16,8 +17,6 @@ interface NavItem {
 
 type SidebarRole = "admin" | "patient" | "researcher";
 
-// Icon components can't cross the Server->Client boundary as props, so this
-// takes a plain `role` string and resolves nav config client-side.
 const NAV_CONFIG: Record<SidebarRole, { roleLabel: string; items: NavItem[] }> = {
   admin: {
     roleLabel: "Hospital Staff",
@@ -43,7 +42,6 @@ const NAV_CONFIG: Record<SidebarRole, { roleLabel: string; items: NavItem[] }> =
   },
 };
 
-// SUPER_ADMIN-only nav items, added conditionally rather than in NAV_CONFIG.
 const SUPER_ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/facilities", label: "Facilities", icon: Building2 },
   { href: "/admin/researchers", label: "Researcher Requests", icon: ShieldCheck },
@@ -64,7 +62,6 @@ export default function AppSidebar({ role }: { role: SidebarRole }) {
   const roleLabel = role === "admin" && isSuperAdmin ? "MeeronBi Team" : baseRoleLabel;
   const items = role === "admin" && isSuperAdmin ? [...baseItems, ...SUPER_ADMIN_ITEMS] : baseItems;
 
-  // Close the mobile drawer automatically whenever the route changes.
   useEffect(() => {
     setOpen(false);
   }, [pathname]);
@@ -107,7 +104,12 @@ export default function AppSidebar({ role }: { role: SidebarRole }) {
         >
           <Menu className="h-5 w-5" />
         </button>
-        <span className="font-display text-base italic text-ink">MeeronBi</span>
+        <Link href="/" className="flex items-center gap-1.5">
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 text-white">
+            <Heart className="h-3.5 w-3.5" fill="currentColor" />
+          </span>
+          <span className="font-display text-base italic text-ink">MeeronBi</span>
+        </Link>
         <div className="w-[34px]" />
       </div>
 
@@ -126,19 +128,31 @@ export default function AppSidebar({ role }: { role: SidebarRole }) {
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="flex items-center justify-between border-b border-line px-5 py-5">
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wider text-brand-600">MeeronBi</p>
-            <h1 className="mt-1 font-display text-lg italic leading-tight text-ink">{roleLabel}</h1>
+        <div className="relative overflow-hidden border-b border-line px-5 py-5">
+          <GrowthRings
+            className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 opacity-[0.06]"
+            rings={3}
+            color="rgb(var(--brand-500))"
+          />
+          <div className="relative flex items-center justify-between">
+            <div>
+              <Link href="/" className="flex items-center gap-1.5">
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-sm">
+                  <Heart className="h-3.5 w-3.5" fill="currentColor" />
+                </span>
+                <span className="text-xs font-medium uppercase tracking-wider text-brand-600">MeeronBi</span>
+              </Link>
+              <h1 className="mt-2 font-display text-lg italic leading-tight text-ink">{roleLabel}</h1>
+            </div>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              aria-label="Close menu"
+              className="rounded-md p-1 text-ink-faint transition-colors hover:bg-paper lg:hidden"
+            >
+              <X className="h-[18px] w-[18px]" />
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={() => setOpen(false)}
-            aria-label="Close menu"
-            className="rounded-md p-1 text-ink-faint transition-colors hover:bg-paper lg:hidden"
-          >
-            <X className="h-[18px] w-[18px]" />
-          </button>
         </div>
 
         <nav className="flex-1 px-3 py-4" aria-label="Primary">

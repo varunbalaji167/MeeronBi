@@ -6,6 +6,7 @@ import Spinner from "@/components/ui/Spinner";
 import ErrorBanner from "@/components/ui/ErrorBanner";
 import { toApiError, friendlyErrorMessage } from "@/lib/apiClient";
 import { CheckCircle2, GraduationCap, Mail, Building2 } from "lucide-react";
+import AuthShell from "@/components/layout/AuthShell";
 
 export default function CompleteResearcherSignupForm({ email, name: initialName }: { email: string; name: string }) {
   const [name, setName] = useState(initialName);
@@ -36,8 +37,8 @@ export default function CompleteResearcherSignupForm({ email, name: initialName 
 
   if (submitted) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center bg-paper px-6 py-16">
-        <div className="panel max-w-md text-center">
+      <AuthShell>
+        <div className="panel text-center">
           <CheckCircle2 className="mx-auto h-10 w-10 text-brand-500" />
           <h1 className="mt-4 font-display text-2xl italic text-ink">Request submitted</h1>
           <p className="mt-2 text-sm text-ink-soft">
@@ -49,17 +50,27 @@ export default function CompleteResearcherSignupForm({ email, name: initialName 
             Back to sign in
           </Link>
         </div>
-      </main>
+      </AuthShell>
     );
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-paper px-6 py-16">
-      <div className="w-full max-w-md">
+    <AuthShell
+      banner={{
+        eyebrow: "Research Access",
+        heading: "Almost there.",
+        body: "Just a few more details to complete your researcher access request.",
+        bullets: [
+          "Your Google account is already linked",
+          "Tell us your institution and research purpose",
+          "The MeeronBi team will review your request",
+        ],
+      }}
+    >
+      <div>
         <h1 className="font-display text-2xl italic text-ink">Finish your researcher access request</h1>
         <p className="mt-2 text-sm text-ink-soft">
-          Signed in as <span className="font-medium text-ink">{email}</span> via Google. Just a couple more details
-          for the MeeronBi team to review.
+          Signed in as <span className="font-medium text-ink">{email}</span> via Google.
         </p>
 
         <form onSubmit={handleSubmit} className="panel mt-6 flex flex-col gap-4">
@@ -109,6 +120,6 @@ export default function CompleteResearcherSignupForm({ email, name: initialName 
           </button>
         </form>
       </div>
-    </main>
+    </AuthShell>
   );
 }

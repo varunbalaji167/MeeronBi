@@ -71,6 +71,29 @@ export default async function SetPasswordPage({ searchParams }: { searchParams: 
           ? "Welcome — set a password to finish setting up your account."
           : "Choose a new password for your account."
       }
+      banner={
+        isInvite
+          ? {
+              eyebrow: "Welcome",
+              heading: "Set up your account.",
+              body: "Choose a password to complete your MeeronBi setup.",
+              bullets: [
+                "Your account was created by the MeeronBi team",
+                "Choose a strong password — at least 6 characters",
+                "You’ll be able to sign in straight away",
+              ],
+            }
+          : {
+              eyebrow: "Password Reset",
+              heading: "Choose a new password.",
+              body: "Pick a strong password for your MeeronBi account.",
+              bullets: [
+                "Your old password will stop working immediately",
+                "Choose a strong password — at least 6 characters",
+                "You’ll be taken to sign in once it’s set",
+              ],
+            }
+      }
     />
   );
 }

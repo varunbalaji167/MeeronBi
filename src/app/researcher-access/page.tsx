@@ -85,15 +85,25 @@ function ResearcherAccessRequestForm() {
   }
 
   return (
-    <AuthShell>
+    <AuthShell
+      banner={{
+        eyebrow: "Research Access",
+        heading: "Join the research.",
+        body: "Request access to explore aggregate, disclosure-controlled antenatal care analytics — never an individual patient row.",
+        bullets: [
+          "Every result is aggregate and cell-size suppressed",
+          "Explore trends by age, parity, district, or pregnancy risk",
+          "Access is reviewed and approved by the MeeronBi team",
+        ],
+      }}
+    >
       <div>
         <Link href="/login?role=researcher" className="text-sm font-medium text-brand-600">
           ← Back to sign in
         </Link>
         <h1 className="mt-3 font-display text-2xl italic text-ink">Request researcher access</h1>
         <p className="mt-2 text-sm text-ink-soft">
-          Access is reviewed by the MeeronBi team before it&apos;s active. Every result you&apos;d see is aggregate and
-          disclosure-controlled — never an individual patient row.
+          Access is reviewed by the MeeronBi team before it&apos;s active.
         </p>
 
         <form onSubmit={handleSubmit} className="panel mt-6 flex flex-col gap-4">

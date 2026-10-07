@@ -11,6 +11,7 @@ import Spinner from "@/components/ui/Spinner";
 import ErrorBanner from "@/components/ui/ErrorBanner";
 import CareTimeline from "@/components/patient/CareTimeline";
 import GoogleButton from "@/components/ui/GoogleButton";
+import { EcgLine, DotGrid, GrowthRings, GentleWave } from "@/components/ui/decor";
 import { CheckCircle2, Mail, Lock } from "lucide-react";
 
 // Set just before the full-page redirect to Google, read (and always cleared) on the way back —
@@ -210,14 +211,23 @@ function LoginForm() {
     <main className="grid min-h-screen lg:grid-cols-2">
       {/* Brand / context panel */}
       <div className="relative hidden flex-col justify-between overflow-hidden bg-brand-700 px-10 py-10 text-brand-50 lg:flex">
-        <div
-          className="pointer-events-none absolute inset-0 opacity-[0.07]"
-          style={{
-            backgroundImage:
-              "radial-gradient(circle at 1px 1px, white 1px, transparent 0)",
-            backgroundSize: "22px 22px",
-          }}
+        <DotGrid className="pointer-events-none absolute inset-0 opacity-[0.07]" color="white" />
+        <GrowthRings
+          className="pointer-events-none absolute -right-[10%] -top-[10%] h-[60%] w-[60%] opacity-[0.08]"
+          color="rgba(255,255,255,0.4)"
+          rings={6}
         />
+        <GrowthRings
+          className="pointer-events-none absolute -bottom-[15%] -left-[8%] h-[45%] w-[45%] opacity-[0.06]"
+          color="rgba(255,255,255,0.3)"
+          rings={4}
+        />
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-14 opacity-20">
+          <EcgLine className="h-full w-full text-white" />
+        </div>
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 opacity-10">
+          <GentleWave className="h-full w-full text-white" fill />
+        </div>
         <div className="relative">
           <Link href="/" className="font-display text-xl italic text-white">
             MeeronBi
@@ -249,9 +259,11 @@ function LoginForm() {
 
       {/* Compact brand panel for phones, where the full panel above is hidden */}
       <div className="relative overflow-hidden bg-brand-700 px-6 py-8 text-brand-50 sm:px-12 lg:hidden">
-        <div
-          className="pointer-events-none absolute inset-0 opacity-[0.07]"
-          style={{ backgroundImage: "radial-gradient(circle at 1px 1px, white 1px, transparent 0)", backgroundSize: "22px 22px" }}
+        <DotGrid className="pointer-events-none absolute inset-0 opacity-[0.07]" color="white" />
+        <GrowthRings
+          className="pointer-events-none absolute -right-[8%] -top-[15%] h-[55%] w-[55%] opacity-[0.08]"
+          color="rgba(255,255,255,0.35)"
+          rings={4}
         />
         <div className="relative mx-auto max-w-sm">
           <Link href="/" className="font-display text-xl italic text-white">
@@ -267,8 +279,14 @@ function LoginForm() {
       </div>
 
       {/* Form panel */}
-      <div className="flex flex-col justify-center px-6 py-10 sm:px-12 lg:px-16 lg:py-16">
-        <div className="mx-auto w-full max-w-sm">
+      <div className="relative flex flex-col justify-center overflow-hidden px-6 py-10 sm:px-12 lg:px-16 lg:py-16">
+        <DotGrid className="pointer-events-none absolute inset-0 opacity-[0.2]" color="rgb(var(--brand-500) / 0.06)" size={24} />
+        <GrowthRings
+          className="pointer-events-none absolute -right-[12%] -top-[12%] h-[45%] w-[45%] opacity-[0.06]"
+          color="rgb(var(--brand-500) / 0.12)"
+          rings={4}
+        />
+        <div className="relative mx-auto w-full max-w-sm">
           <div className="flex flex-wrap gap-2">
             <Link
               href="/login?role=patient"

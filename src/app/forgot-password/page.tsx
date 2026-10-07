@@ -52,7 +52,18 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <AuthShell>
+    <AuthShell
+      banner={{
+        eyebrow: "Account Recovery",
+        heading: "Get back in.",
+        body: "We’ll send a link to reset your password — your data stays safe.",
+        bullets: [
+          "A reset link will be sent to your registered email",
+          "Your patient data stays exactly where it is",
+          "Contact your care team if you need further help",
+        ],
+      }}
+    >
       <div>
         <Link href="/login" className="text-sm font-medium text-brand-600">
           ← Back to sign in

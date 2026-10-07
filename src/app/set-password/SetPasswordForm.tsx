@@ -7,8 +7,11 @@ import Spinner from "@/components/ui/Spinner";
 import ErrorBanner from "@/components/ui/ErrorBanner";
 import { toApiError, friendlyErrorMessage } from "@/lib/apiClient";
 import { Lock, CheckCircle2 } from "lucide-react";
+import AuthShell from "@/components/layout/AuthShell";
 
-export default function SetPasswordForm({ token, heading, body }: { token: string; heading: string; body: string }) {
+interface AuthBanner { eyebrow: string; heading: string; body: string; bullets?: string[] }
+
+export default function SetPasswordForm({ token, heading, body, banner }: { token: string; heading: string; body: string; banner?: AuthBanner }) {
   const router = useRouter();
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -44,19 +47,19 @@ export default function SetPasswordForm({ token, heading, body }: { token: strin
 
   if (done) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center bg-paper px-6 py-16">
-        <div className="panel max-w-md text-center">
+      <AuthShell>
+        <div className="panel text-center">
           <CheckCircle2 className="mx-auto h-10 w-10 text-brand-500" />
           <h1 className="mt-4 font-display text-2xl italic text-ink">Password set</h1>
           <p className="mt-2 text-sm text-ink-soft">Taking you to sign in…</p>
         </div>
-      </main>
+      </AuthShell>
     );
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-paper px-6 py-16">
-      <div className="w-full max-w-md">
+    <AuthShell banner={banner}>
+      <div>
         <h1 className="font-display text-2xl italic text-ink">{heading}</h1>
         <p className="mt-2 text-sm text-ink-soft">{body}</p>
 
@@ -105,6 +108,6 @@ export default function SetPasswordForm({ token, heading, body }: { token: strin
           </Link>
         </p>
       </div>
-    </main>
+    </AuthShell>
   );
 }
