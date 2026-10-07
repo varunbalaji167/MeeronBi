@@ -73,7 +73,7 @@ export default function CareTimeline({
       </span>
     );
     return (
-      <li key={tab.key} className="flex flex-1 flex-col items-center gap-2 text-center">
+      <li key={tab.key} className="flex min-w-0 flex-1 flex-col items-center gap-2 px-1 text-center">
         <div className="flex w-full items-center">
           <span aria-hidden="true" className={`h-px flex-1 ${i === 0 ? "bg-transparent" : dark ? "bg-white/20" : "bg-line"}`} />
           {href && onNavigate ? (
@@ -103,7 +103,7 @@ export default function CareTimeline({
         </div>
         <span
           aria-hidden="true"
-          className={`hidden items-center gap-1 text-xs font-medium sm:flex ${
+          className={`hidden min-w-0 max-w-full items-center gap-1 text-xs font-medium sm:flex ${
             dark
               ? isActive
                 ? "text-white"
@@ -113,8 +113,8 @@ export default function CareTimeline({
               : "text-ink-soft"
           }`}
         >
-          {StageIcon && <StageIcon className="h-3 w-3" />}
-          {tab.label}
+          {StageIcon && <StageIcon className="h-3 w-3 shrink-0" />}
+          <span className="truncate">{tab.label}</span>
         </span>
       </li>
     );

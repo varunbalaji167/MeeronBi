@@ -26,14 +26,19 @@ interface TrendsChartsProps {
 export default function TrendsCharts({ deliveriesByMode, robsonGroups, registrationsByMonth }: TrendsChartsProps) {
   return (
     <>
-      <div className="animate-rise-in panel sm:col-span-3" style={{ animationDelay: "180ms" }}>
-        <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-ink-soft">
-          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-50 text-brand-600">
-            <TrendingUp className="h-3.5 w-3.5" />
-          </span>
-          Registrations Over Time
-        </h2>
-        <ResponsiveContainer width="100%" height={260}>
+      <div className="animate-rise-in rounded-xl border border-line bg-white p-5 shadow-sm sm:col-span-3" style={{ animationDelay: "180ms" }}>
+        <div className="mb-5">
+          <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-ink-soft">
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-50 text-brand-600">
+              <TrendingUp className="h-3.5 w-3.5" />
+            </span>
+            Registrations Over Time
+          </h2>
+          <p className="mt-1.5 pl-9 text-xs leading-relaxed text-ink-faint">
+            New patient registrations by month — a proxy for programme uptake and seasonal patterns.
+          </p>
+        </div>
+        <ResponsiveContainer width="100%" height={280}>
           <LineChart data={registrationsByMonth}>
             <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
             <XAxis dataKey="month" {...CHART_AXIS_PROPS} />
@@ -44,14 +49,19 @@ export default function TrendsCharts({ deliveriesByMode, robsonGroups, registrat
         </ResponsiveContainer>
       </div>
 
-      <div className="animate-rise-in panel sm:col-span-1" style={{ animationDelay: "240ms" }}>
-        <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-ink-soft">
-          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-gold-50 text-gold-600">
-            <PieChartIcon className="h-3.5 w-3.5" />
-          </span>
-          Delivery Mode
-        </h2>
-        <ResponsiveContainer width="100%" height={260}>
+      <div className="animate-rise-in rounded-xl border border-line bg-white p-5 shadow-sm sm:col-span-1" style={{ animationDelay: "240ms" }}>
+        <div className="mb-5">
+          <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-ink-soft">
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-gold-50 text-gold-600">
+              <PieChartIcon className="h-3.5 w-3.5" />
+            </span>
+            Delivery Mode
+          </h2>
+          <p className="mt-1.5 pl-9 text-xs leading-relaxed text-ink-faint">
+            Normal vs. caesarean vs. assisted — the split matters for outcomes research.
+          </p>
+        </div>
+        <ResponsiveContainer width="100%" height={280}>
           <PieChart>
             <Pie
               data={deliveriesByMode}
@@ -69,14 +79,19 @@ export default function TrendsCharts({ deliveriesByMode, robsonGroups, registrat
         </ResponsiveContainer>
       </div>
 
-      <div className="animate-rise-in panel sm:col-span-2" style={{ animationDelay: "300ms" }}>
-        <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-ink-soft">
-          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-50 text-brand-600">
-            <BarChart3 className="h-3.5 w-3.5" />
-          </span>
-          Robson Ten-Group Classification
-        </h2>
-        <ResponsiveContainer width="100%" height={260}>
+      <div className="animate-rise-in rounded-xl border border-line bg-white p-5 shadow-sm sm:col-span-2" style={{ animationDelay: "300ms" }}>
+        <div className="mb-5">
+          <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-ink-soft">
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-50 text-brand-600">
+              <BarChart3 className="h-3.5 w-3.5" />
+            </span>
+            Robson Ten-Group Classification
+          </h2>
+          <p className="mt-1.5 pl-9 text-xs leading-relaxed text-ink-faint">
+            WHO standard for auditing caesarean rates — each group is a clinically meaningful cohort.
+          </p>
+        </div>
+        <ResponsiveContainer width="100%" height={280}>
           <BarChart data={robsonGroups}>
             <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
             <XAxis dataKey="group" tickFormatter={(g) => `Grp ${g}`} {...CHART_AXIS_PROPS} />

@@ -76,6 +76,74 @@
   animation: rise-in 0.28s ease-out backwards;
 }
 
+/* Slow heartbeat pulse for brand marks and hero accents. */
+@keyframes beat {
+  0%, 20%, 50%, 80%, 100% { transform: scale(1); }
+  40% { transform: scale(1.08); }
+  60% { transform: scale(1.04); }
+}
+.animate-beat {
+  animation: beat 2.4s ease-in-out infinite;
+  transform-origin: center;
+}
+
+/* Gentle float for decorative elements. */
+@keyframes float-slow {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-6px); }
+}
+.animate-float-slow {
+  animation: float-slow 5s ease-in-out infinite;
+}
+
+/* ECG line sweep: draws the heart-rate line across the hero. */
+@keyframes ecg-draw {
+  0% { stroke-dashoffset: 1200; }
+  100% { stroke-dashoffset: 0; }
+}
+.animate-ecg {
+  stroke-dasharray: 1200;
+  animation: ecg-draw 4.5s ease-in-out infinite;
+}
+
+/* Soft radial glow pulse. */
+@keyframes glow-pulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 0.7; }
+}
+.animate-glow {
+  animation: glow-pulse 4s ease-in-out infinite;
+}
+
+/* Shimmer across the gradient CTA band. */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.animate-shimmer {
+  background-size: 200% 100%;
+  animation: shimmer 6s linear infinite;
+}
+
+/* Rotating halo for the hero mark. */
+@keyframes slow-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.animate-slow-spin {
+  animation: slow-spin 40s linear infinite;
+}
+
+/* Gentle horizontal drift for wave decorations. */
+@keyframes wave-drift {
+  0% { stroke-dashoffset: 0; }
+  100% { stroke-dashoffset: 300; }
+}
+.animate-wave-drift {
+  stroke-dasharray: 600;
+  animation: wave-drift 8s linear infinite;
+}
+
 @layer components {
   /* ---------- form controls ---------- */
   .input-field {
