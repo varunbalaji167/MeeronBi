@@ -24,7 +24,7 @@
     "dev:worker": "tsx watch scripts/email-worker.ts"
   },
   "dependencies": {
-    "@prisma/client": "^5.22.0",
+    "@prisma/client": "^7.10.0",
     "@sentry/nextjs": "^11.4.0",
     "bcryptjs": "^2.4.3",
     "dotenv": "^17.4.2",
